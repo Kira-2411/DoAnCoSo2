@@ -1,0 +1,12 @@
+import axiosClient from './axiosClient';
+
+export const authApi = {
+  login: (email, password) => {
+    return axiosClient.post('/auth/login', { email, password });
+  },
+  me: () => {
+    return axiosClient.get('/auth/me');
+  },
+};
+
+export default authApi;

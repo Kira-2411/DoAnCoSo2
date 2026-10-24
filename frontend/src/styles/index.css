@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   --primary: #e50914;
   --primary-hover: #b80710;
@@ -12,11 +14,6 @@
   color-scheme: dark;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
 
 body {
   background-color: var(--bg-dark);
