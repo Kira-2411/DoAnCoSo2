@@ -11,7 +11,6 @@ Bật Docker Desktop và đợi 10 – 30 giây cho đến khi biểu tượng D
 Bước 2: Khởi động Database (MySQL)
 Mở Terminal (PowerShell / Command Prompt) tại thư mục gốc dự án:
 bash
-cd d:\Project_Java\DoAnCoSo2
 docker compose up -d mysql
 Lệnh này sẽ đánh thức lại container MySQL và giữ nguyên toàn bộ dữ liệu từ hôm trước.
 Bước 3: Khởi động Backend (Spring Boot)
@@ -25,7 +24,7 @@ Backend sẽ tự động kết nối vào MySQL (cổng 3307), nạp cấu hìn
 Bước 4: Khởi động Frontend (React + Vite)
 Mở một tab Terminal mới và di chuyển vào thư mục frontend:
 bash
-cd d:\Project_Java\DoAnCoSo2\frontend
+cd frontend 
 npm run dev
 Mở trình duyệt web truy cập vào: http://localhost:5173.
 💡 Mẹo nhỏ cho lần này (Vì bạn vừa mới sửa 
