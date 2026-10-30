@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth, getHomeRouteByRole } from '../../contexts/AuthContext';
+import { validateEmail, validateRequired } from '../../utils/validators';
 import akashiLogo from '../../assets/images/Akashi.png';
 import bgLogin from '../../assets/images/backgroundlogin.png';
 
@@ -9,10 +10,14 @@ const LoginPage = () => {
   const { user, login } = useAuth();
   const navigate = useNavigate();
 
+  const emailInputRef = useRef(null);
+  const passwordInputRef = useRef(null);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({ email: '', password: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Nếu đã đăng nhập thì tự động chuyển về trang chủ theo vai trò
@@ -22,25 +27,109 @@ const LoginPage = () => {
     }
   }, [user, navigate]);
 
+  const handleEmailChange = (e) => {
+    setEmail(e.target.value);
+    if (fieldErrors.email) {
+      setFieldErrors((prev) => ({ ...prev, email: '' }));
+    }
+    if (error) {
+      setError('');
+    }
+  };
+
+  const handlePasswordChange = (e) => {
+    setPassword(e.target.value);
+    if (fieldErrors.password) {
+      setFieldErrors((prev) => ({ ...prev, password: '' }));
+    }
+    if (error) {
+      setError('');
+    }
+  };
+
+  const handleEmailBlur = () => {
+    const emailErr = validateEmail(email);
+    setFieldErrors((prev) => ({ ...prev, email: emailErr || '' }));
+  };
+
+  const handlePasswordBlur = () => {
+    const passwordErr = validateRequired(password, 'Vui lòng nhập mật khẩu', false);
+    setFieldErrors((prev) => ({ ...prev, password: passwordErr || '' }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // Cắt khoảng trắng đầu cuối của email trước khi kiểm tra và gửi
+    const trimmedEmail = email.trim();
+    // KHÔNG trim mật khẩu, giữ nguyên vẹn
+    const emailErr = validateEmail(trimmedEmail);
+    const passwordErr = validateRequired(password, 'Vui lòng nhập mật khẩu', false);
+
+    if (emailErr || passwordErr) {
+      setFieldErrors({
+        email: emailErr || '',
+        password: passwordErr || '',
+      });
+
+      // Trợ năng: Đưa focus về ô lỗi đầu tiên
+      if (emailErr) {
+        emailInputRef.current?.focus();
+      } else if (passwordErr) {
+        passwordInputRef.current?.focus();
+      }
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const loggedUser = await login(email, password);
+      // Chỉ gửi email đã trim, mật khẩu giữ nguyên văn
+      const loggedUser = await login(trimmedEmail, password);
       const destination = getHomeRouteByRole(loggedUser.role);
       navigate(destination, { replace: true });
     } catch (err) {
       if (!err.response) {
         // Mất kết nối hoặc backend chưa chạy
         setError('Không thể kết nối máy chủ, vui lòng thử lại sau');
-      } else if (err.response.data && err.response.data.message) {
-        // Message lỗi chính xác do server trả về (BAD_CREDENTIALS, ACCOUNT_LOCKED, EMAIL_NOT_VERIFIED, ...)
-        setError(err.response.data.message);
       } else {
-        // Lỗi không xác định khác
-        setError('Đã xảy ra lỗi, vui lòng thử lại sau');
+        const data = err.response.data;
+        if (data && data.code === 'VALIDATION_ERROR') {
+          const details = data.details;
+          if (details && typeof details === 'object' && Object.keys(details).length > 0) {
+            const hasEmailErr = Boolean(details.email);
+            const hasPasswordErr = Boolean(details.password);
+            const hasUnknownKey = Object.keys(details).some(
+              (key) => key !== 'email' && key !== 'password'
+            );
+
+            setFieldErrors({
+              email: details.email || '',
+              password: details.password || '',
+            });
+
+            // Focus vào ô lỗi đầu tiên
+            if (hasEmailErr) {
+              emailInputRef.current?.focus();
+            } else if (hasPasswordErr) {
+              passwordInputRef.current?.focus();
+            }
+
+            // Nếu có khóa lạ hoặc không có lỗi nào thuộc email/password thì hiện thông báo chung
+            if (hasUnknownKey || (!hasEmailErr && !hasPasswordErr)) {
+              setError(data.message || 'Dữ liệu gửi lên không hợp lệ');
+            }
+          } else {
+            // Không có details thì hiển thị thông báo chung phía trên form
+            setError(data.message || 'Dữ liệu gửi lên không hợp lệ');
+          }
+        } else if (data && data.message) {
+          // Lỗi nghiệp vụ từ server (BAD_CREDENTIALS, ACCOUNT_LOCKED, ...)
+          setError(data.message);
+        } else {
+          setError('Đã xảy ra lỗi, vui lòng thử lại sau');
+        }
       }
     } finally {
       setIsSubmitting(false);
@@ -74,15 +163,18 @@ const LoginPage = () => {
           Đăng nhập để trải nghiệm điện ảnh đỉnh cao
         </p>
 
-        {/* Thông báo lỗi */}
+        {/* Thông báo lỗi chung từ server */}
         {error && (
-          <div className="mb-5 p-3 rounded-lg bg-red-950/60 border border-red-500/50 text-red-200 text-sm text-center">
+          <div
+            role="alert"
+            className="mb-5 p-3 rounded-lg bg-red-950/60 border border-red-500/50 text-red-200 text-sm text-center"
+          >
             {error}
           </div>
         )}
 
         {/* Form đăng nhập */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           {/* Ô nhập Email */}
           <div>
             <label
@@ -92,14 +184,32 @@ const LoginPage = () => {
               NHẬP EMAIL DÙNG ĐỂ ĐĂNG KÝ TÀI KHOẢN
             </label>
             <input
+              ref={emailInputRef}
               id="email"
+              name="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={handleEmailChange}
+              onBlur={handleEmailBlur}
               placeholder="example@email.com"
-              required
-              className="w-full bg-[#242424] border border-zinc-700/60 focus:border-[#e50914] focus:outline-none rounded-lg px-4 py-3 text-white placeholder-zinc-500 text-sm transition"
+              autoComplete="email"
+              aria-invalid={fieldErrors.email ? 'true' : 'false'}
+              aria-describedby={fieldErrors.email ? 'email-error' : undefined}
+              className={`w-full bg-[#242424] border ${
+                fieldErrors.email
+                  ? 'border-red-500 focus:border-red-500'
+                  : 'border-zinc-700/60 focus:border-[#e50914]'
+              } focus:outline-none rounded-lg px-4 py-3 text-white placeholder-zinc-500 text-sm transition`}
             />
+            {fieldErrors.email && (
+              <p
+                id="email-error"
+                role="alert"
+                className="text-xs text-red-400 mt-1.5"
+              >
+                {fieldErrors.email}
+              </p>
+            )}
           </div>
 
           {/* Ô nhập Mật khẩu */}
@@ -121,13 +231,24 @@ const LoginPage = () => {
             </div>
             <div className="relative">
               <input
+                ref={passwordInputRef}
                 id="password"
+                name="password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={handlePasswordChange}
+                onBlur={handlePasswordBlur}
                 placeholder="••••••••"
-                required
-                className="w-full bg-[#242424] border border-zinc-700/60 focus:border-[#e50914] focus:outline-none rounded-lg px-4 py-3 pr-11 text-white placeholder-zinc-500 text-sm transition"
+                autoComplete="current-password"
+                aria-invalid={fieldErrors.password ? 'true' : 'false'}
+                aria-describedby={
+                  fieldErrors.password ? 'password-error' : undefined
+                }
+                className={`w-full bg-[#242424] border ${
+                  fieldErrors.password
+                    ? 'border-red-500 focus:border-red-500'
+                    : 'border-zinc-700/60 focus:border-[#e50914]'
+                } focus:outline-none rounded-lg px-4 py-3 pr-11 text-white placeholder-zinc-500 text-sm transition`}
               />
               <button
                 type="button"
@@ -142,6 +263,15 @@ const LoginPage = () => {
                 )}
               </button>
             </div>
+            {fieldErrors.password && (
+              <p
+                id="password-error"
+                role="alert"
+                className="text-xs text-red-400 mt-1.5"
+              >
+                {fieldErrors.password}
+              </p>
+            )}
           </div>
 
           {/* Nút Đăng nhập */}
