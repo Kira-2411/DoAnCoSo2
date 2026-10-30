@@ -35,20 +35,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String roleStr = jwtTokenProvider.getRoleFromToken(token);
 
             if (userId != null && email != null && roleStr != null) {
-                Role role = Role.valueOf(roleStr);
-                CustomUserDetails userDetails = CustomUserDetails.builder()
-                        .userId(userId)
-                        .email(email)
-                        .role(role)
-                        .active(true)
-                        .emailVerified(true)
-                        .build();
+                try {
+                    Role role = Role.valueOf(roleStr);
+                    CustomUserDetails userDetails = CustomUserDetails.builder()
+                            .userId(userId)
+                            .email(email)
+                            .role(role)
+                            .active(true)
+                            .emailVerified(true)
+                            .build();
 
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                } catch (IllegalArgumentException e) {
+                    // Token đúng chữ ký nhưng vai trò không còn tồn tại: coi như chưa đăng nhập
+                }
             }
         }
 
