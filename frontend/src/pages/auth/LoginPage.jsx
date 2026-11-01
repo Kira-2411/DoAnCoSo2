@@ -221,13 +221,12 @@ const LoginPage = () => {
               >
                 MẬT KHẨU
               </label>
-              {/* TODO: Nối tính năng Quên mật khẩu sau */}
-              <button
-                type="button"
+              <Link
+                to="/forgot-password"
                 className="text-xs font-bold text-[#e50914] hover:text-red-500 uppercase tracking-wider transition cursor-pointer"
               >
                 QUÊN MẬT KHẨU?
-              </button>
+              </Link>
             </div>
             <div className="relative">
               <input
