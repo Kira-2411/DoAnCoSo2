@@ -7,6 +7,7 @@ import com.akashi.cinema.security.CustomAuthenticationEntryPoint;
 import com.akashi.cinema.security.JwtAuthenticationFilter;
 import com.akashi.cinema.security.JwtTokenProvider;
 import com.akashi.cinema.service.AuthService;
+import com.akashi.cinema.service.RegistrationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +38,9 @@ class AuthControllerTest {
 
     @MockBean
     private AuthService authService;
+
+    @MockBean
+    private RegistrationService registrationService;
 
     @MockBean
     private JwtTokenProvider jwtTokenProvider;
@@ -78,5 +82,18 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/register với email sai định dạng trả 400 VALIDATION_ERROR")
+    void register_WithInvalidEmail_Returns400AndValidationError() throws Exception {
+        String invalidEmailJson = "{\"username\":\"testuser\",\"email\":\"invalid-email\",\"password\":\"Password123\"}";
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidEmailJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 }

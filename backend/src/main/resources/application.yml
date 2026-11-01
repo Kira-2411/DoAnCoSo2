@@ -13,6 +13,21 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+          starttls:
+            enable: true
+            required: true
 
 server:
   port: 8080
@@ -21,3 +36,8 @@ akashi:
   jwt:
     secret: ${JWT_SECRET}
     expiry-minutes: 60
+  otp:
+    expiry-minutes: 5
+    max-attempts: 5
+    resend-seconds: 60
+    max-per-hour: 5
