@@ -39,5 +39,5 @@ akashi:
   otp:
     expiry-minutes: 5
     max-attempts: 5
-    resend-seconds: 60
+    resend-seconds: 30
     max-per-hour: 5
