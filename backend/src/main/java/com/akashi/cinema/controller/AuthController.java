@@ -1,14 +1,18 @@
 package com.akashi.cinema.controller;
 
+import com.akashi.cinema.dto.request.ForgotPasswordRequest;
 import com.akashi.cinema.dto.request.LoginRequest;
 import com.akashi.cinema.dto.request.RegisterRequest;
 import com.akashi.cinema.dto.request.ResendOtpRequest;
+import com.akashi.cinema.dto.request.ResetPasswordRequest;
 import com.akashi.cinema.dto.request.VerifyEmailRequest;
 import com.akashi.cinema.dto.response.LoginResponse;
 import com.akashi.cinema.dto.response.MessageResponse;
 import com.akashi.cinema.dto.response.UserResponse;
+import com.akashi.cinema.enums.OtpPurpose;
 import com.akashi.cinema.security.CustomUserDetails;
 import com.akashi.cinema.service.AuthService;
+import com.akashi.cinema.service.PasswordResetService;
 import com.akashi.cinema.service.RegistrationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -22,10 +26,14 @@ public class AuthController {
 
     private final AuthService authService;
     private final RegistrationService registrationService;
+    private final PasswordResetService passwordResetService;
 
-    public AuthController(AuthService authService, RegistrationService registrationService) {
+    public AuthController(AuthService authService,
+                          RegistrationService registrationService,
+                          PasswordResetService passwordResetService) {
         this.authService = authService;
         this.registrationService = registrationService;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/login")
@@ -54,7 +62,23 @@ public class AuthController {
 
     @PostMapping("/resend-otp")
     public ResponseEntity<MessageResponse> resendOtp(@Valid @RequestBody ResendOtpRequest request) {
+        if (request.getPurpose() == OtpPurpose.RESET_PASSWORD) {
+            MessageResponse response = passwordResetService.forgotPassword(request.getEmail());
+            return ResponseEntity.ok(response);
+        }
         MessageResponse response = registrationService.resendOtp(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<MessageResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        MessageResponse response = passwordResetService.forgotPassword(request.getEmail());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<MessageResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        MessageResponse response = passwordResetService.resetPassword(request);
         return ResponseEntity.ok(response);
     }
 }

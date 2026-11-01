@@ -17,6 +17,7 @@ public class RegisterRequest {
     private String email;
 
     @NotBlank(message = "Mật khẩu không được để trống")
+    @Size(max = 72, message = "Mật khẩu tối đa 72 ký tự")
     private String password;
 
     @Size(max = 20, message = "Số điện thoại tối đa 20 ký tự")
@@ -65,4 +66,3 @@ public class RegisterRequest {
         this.phone = phone;
     }
 }
-

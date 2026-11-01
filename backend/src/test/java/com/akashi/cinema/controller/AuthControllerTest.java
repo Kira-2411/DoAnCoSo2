@@ -7,6 +7,7 @@ import com.akashi.cinema.security.CustomAuthenticationEntryPoint;
 import com.akashi.cinema.security.JwtAuthenticationFilter;
 import com.akashi.cinema.security.JwtTokenProvider;
 import com.akashi.cinema.service.AuthService;
+import com.akashi.cinema.service.PasswordResetService;
 import com.akashi.cinema.service.RegistrationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,9 @@ class AuthControllerTest {
 
     @MockBean
     private RegistrationService registrationService;
+
+    @MockBean
+    private PasswordResetService passwordResetService;
 
     @MockBean
     private JwtTokenProvider jwtTokenProvider;
