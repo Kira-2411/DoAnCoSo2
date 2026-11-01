@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth, getHomeRouteByRole } from '../../contexts/AuthContext';
 import { validateEmail, validateRequired } from '../../utils/validators';
@@ -296,13 +296,12 @@ const LoginPage = () => {
         {/* Dòng liên kết Đăng ký */}
         <div className="text-center text-xs sm:text-sm text-zinc-400 mt-6">
           Bạn chưa có tài khoản?{' '}
-          {/* TODO: Nối tính năng Đăng ký sau */}
-          <button
-            type="button"
+          <Link
+            to="/register"
             className="text-[#e50914] font-bold hover:underline cursor-pointer"
           >
             Đăng ký ngay
-          </button>
+          </Link>
         </div>
       </div>
     </div>
