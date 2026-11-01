@@ -9,12 +9,12 @@ import com.akashi.cinema.enums.OtpPurpose;
 import com.akashi.cinema.enums.Role;
 import com.akashi.cinema.exception.AppException;
 import com.akashi.cinema.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -24,15 +24,26 @@ public class RegistrationService {
     private final PasswordEncoder passwordEncoder;
     private final OtpService otpService;
     private final EmailService emailService;
+    private final PasswordPolicy passwordPolicy;
+
+    @Autowired
+    public RegistrationService(UserRepository userRepository,
+                               PasswordEncoder passwordEncoder,
+                               OtpService otpService,
+                               EmailService emailService,
+                               PasswordPolicy passwordPolicy) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.otpService = otpService;
+        this.emailService = emailService;
+        this.passwordPolicy = passwordPolicy;
+    }
 
     public RegistrationService(UserRepository userRepository,
                                PasswordEncoder passwordEncoder,
                                OtpService otpService,
                                EmailService emailService) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.otpService = otpService;
-        this.emailService = emailService;
+        this(userRepository, passwordEncoder, otpService, emailService, new PasswordPolicy());
     }
 
     @Transactional
@@ -40,8 +51,8 @@ public class RegistrationService {
         String email = request.getEmail().trim().toLowerCase();
         String password = request.getPassword();
 
-        // BR-AUTH-02: Mật khẩu tối thiểu 8 ký tự, có ít nhất một chữ và một số
-        validatePassword(password);
+        // BR-AUTH-02: Mật khẩu tối thiểu 8 ký tự, có ít nhất một chữ và một số, tối đa 72 bytes UTF-8
+        passwordPolicy.validate(password, "password");
 
         Optional<User> existingUserOpt = userRepository.findByEmail(email);
         if (existingUserOpt.isPresent()) {
@@ -124,18 +135,4 @@ public class RegistrationService {
 
         return new MessageResponse(genericMessage);
     }
-
-    private void validatePassword(String password) {
-        if (password == null || password.length() < 8
-                || !password.matches(".*[a-zA-Z].*")
-                || !password.matches(".*\\d.*")) {
-            throw new AppException(
-                    HttpStatus.BAD_REQUEST,
-                    "VALIDATION_ERROR",
-                    "Mật khẩu không đáp ứng yêu cầu",
-                    Map.of("password", "Mật khẩu phải có tối thiểu 8 ký tự, chứa ít nhất một chữ cái và một số")
-            );
-        }
-    }
 }
-
