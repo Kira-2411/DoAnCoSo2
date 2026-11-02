@@ -206,3 +206,4 @@
 2. **Hợp đồng:** Đúng đường dẫn, đúng method, tên trường `camelCase`, đúng mã HTTP và cấu trúc lỗi `status`, `code`, `message`, `timestamp`.
 3. **Kiểm thử:** Trước khi gửi PR, bắt buộc chạy `mvn test` trong `backend/` và toàn bộ phải xanh (`BUILD SUCCESS`).
 4. **Bảo mật:** Không in mật khẩu, OTP, token ra log/console; không commit `.env`.
+
