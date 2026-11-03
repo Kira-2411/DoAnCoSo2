@@ -1,0 +1,77 @@
+name: Akashi Cinema CI
+
+on:
+  push:
+    branches: [ main, 'feature/**', 'fix/**' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # -------------------------------------------------------------
+  # JOB 1: KIỂM TRA FRONTEND (Build Vite)
+  # -------------------------------------------------------------
+  frontend-check:
+    name: Frontend Check (Build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cài đặt Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Cài đặt dependencies
+        working-directory: frontend
+        run: npm ci || npm install
+
+      - name: Kiểm tra Build Frontend
+        working-directory: frontend
+        run: npm run build
+
+  # -------------------------------------------------------------
+  # JOB 2: KIỂM TRA BACKEND (Chạy mvn test với MySQL thật)
+  # -------------------------------------------------------------
+  backend-check:
+    name: Backend Check (JUnit Tests)
+    runs-on: ubuntu-latest
+
+    # Khởi động dịch vụ MySQL 8.0 để chạy Integration Test
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: Akashi_Cinema
+        ports:
+          - 3307:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cài đặt JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 21
+          cache: 'maven'
+
+      - name: Chạy toàn bộ Test Backend (mvn test)
+        working-directory: backend
+        env:
+          DB_PORT: 3307
+          DB_NAME: Akashi_Cinema
+          DB_USER: root
+          DB_PASSWORD: root
+          JWT_SECRET: ci-jwt-secret-key-that-is-at-least-32-characters-long-2026
+          MAIL_HOST: localhost
+          MAIL_PORT: 25
+          MAIL_USERNAME: ci-test@akashi.invalid
+          MAIL_PASSWORD: dummy-password
+        run: mvn clean test
