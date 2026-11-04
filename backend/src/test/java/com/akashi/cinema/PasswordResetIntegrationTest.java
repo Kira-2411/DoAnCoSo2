@@ -47,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PasswordResetIntegrationTest {
 
     private static final String GENERIC_MESSAGE =
-            "Nếu email tồn tại, mã OTP đã được gửi. Nếu bạn vừa yêu cầu, vui lòng chờ khoảng 1 phút trước khi thử lại.";
+            "Mã OTP đã được gửi. Nếu bạn vừa yêu cầu, vui lòng chờ khoảng 1 phút trước khi thử lại.";
 
     @Autowired
     private MockMvc mockMvc;

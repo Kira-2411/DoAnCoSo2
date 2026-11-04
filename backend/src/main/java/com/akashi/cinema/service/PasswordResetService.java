@@ -21,7 +21,7 @@ public class PasswordResetService {
     private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
 
     private static final String GENERIC_MESSAGE =
-            "Nếu email tồn tại, mã OTP đã được gửi. Nếu bạn vừa yêu cầu, vui lòng chờ khoảng 1 phút trước khi thử lại.";
+            "Mã OTP đã được gửi. Nếu bạn vừa yêu cầu, vui lòng chờ khoảng 1 phút trước khi thử lại.";
 
     // Chuỗi đầu vào giả lập để băm BCrypt khi email không hợp lệ
     private static final String DUMMY_HASH_INPUT = "AkashiCinema@DummyOtpHashForTimingDefense";
