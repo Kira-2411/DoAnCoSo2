@@ -24,6 +24,7 @@ import MessengerButton from '../components/MessengerButton';
 import heroBannerImg from '../assets/images/AnhBiaAkashiCinema.png';
 import { useAuth } from '../contexts/AuthContext';
 import bookingApi from '../api/bookingApi';
+import movieApi from '../api/movieApi';
 
 // Danh sách các mục điều hướng nhanh trong nội dung trang (Quick Nav Cards)
 const QUICK_NAV_ITEMS = [
@@ -69,70 +70,43 @@ const formatDateTime = (dateStr) => {
   }
 };
 
-// Dữ liệu mẫu danh sách phim đang hot
-const HOT_MOVIES = [
-  {
-    id: 1,
-    title: 'Hành Trình Về Phía Biển',
-    genre: 'Tâm lý, Gia đình',
-    duration: '120 phút',
-    ageLimit: 'P',
-    rating: '9.4',
-    releaseDate: 'Đang chiếu',
-    bannerGradient: 'from-blue-900 to-indigo-950',
-    accentColor: '#3b82f6',
-  },
-  {
-    id: 2,
-    title: 'Thám Tử Phố Cổ',
-    genre: 'Hình sự, Bí ẩn',
-    duration: '105 phút',
-    ageLimit: 'T16',
-    rating: '9.1',
-    releaseDate: 'Đang chiếu',
-    bannerGradient: 'from-amber-950 to-stone-900',
-    accentColor: '#f59e0b',
-  },
-  {
-    id: 3,
-    title: 'Đêm Cuối Ở Hội An',
-    genre: 'Lãng mạn, Hài',
-    duration: '130 phút',
-    ageLimit: 'T13',
-    rating: '8.9',
-    releaseDate: 'Đang chiếu',
-    bannerGradient: 'from-rose-950 to-zinc-900',
-    accentColor: '#f43f5e',
-  },
-  {
-    id: 4,
-    title: 'Bóng Rổ Đường Phố',
-    genre: 'Thể thao, Nhiệt huyết',
-    duration: '110 phút',
-    ageLimit: 'P',
-    rating: '9.3',
-    releaseDate: 'Đang chiếu',
-    bannerGradient: 'from-orange-950 to-neutral-900',
-    accentColor: '#ea580c',
-  },
-  {
-    id: 5,
-    title: 'Bản Giao Hưởng Địa Cầu',
-    genre: 'Khoa học, Giả tưởng',
-    duration: '145 phút',
-    ageLimit: 'T13',
-    rating: '9.5',
-    releaseDate: 'Đang chiếu',
-    bannerGradient: 'from-cyan-950 to-slate-900',
-    accentColor: '#06b6d4',
-  },
-];
-
 const HomePage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const ticketScrollRef = useRef(null);
   const [scrollProgress, setScrollProgress] = useState(0);
+
+  // State lưu trữ phim thật từ backend (Phim đang hot / đang chiếu)
+  const [hotMovies, setHotMovies] = useState([]);
+  const [loadingHotMovies, setLoadingHotMovies] = useState(true);
+
+  // Tải danh sách phim thật từ database
+  useEffect(() => {
+    let isMounted = true;
+    const fetchHotMovies = async () => {
+      try {
+        setLoadingHotMovies(true);
+        const response = await movieApi.getMovies({ status: 'NOW_SHOWING', size: 10 });
+        if (isMounted) {
+          setHotMovies(response.data?.content || []);
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải danh sách phim đang chiếu:', err);
+        if (isMounted) {
+          setHotMovies([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingHotMovies(false);
+        }
+      }
+    };
+
+    fetchHotMovies();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // State lưu trữ dữ liệu thật từ backend
   const [tickets, setTickets] = useState([]);
@@ -465,70 +439,92 @@ const HomePage = () => {
           </div>
 
           {/* Movie Cards Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-5">
-            {HOT_MOVIES.map((movie) => (
-              <div
-                key={movie.id}
-                className="group relative bg-[#1c1c1f] rounded-2xl overflow-hidden border border-zinc-800/90 hover:border-zinc-700/80 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl flex flex-col"
-              >
-                {/* Poster Graphic Artwork */}
+          {loadingHotMovies ? (
+            <div className="flex flex-col items-center justify-center py-12 text-zinc-400 bg-[#1c1c1f]/40 border border-zinc-800/50 rounded-2xl">
+              <Loader2 className="w-7 h-7 animate-spin text-[#e50914] mb-2" />
+              <p className="text-xs sm:text-sm font-medium">Đang tải danh sách phim đang chiếu...</p>
+            </div>
+          ) : hotMovies.length === 0 ? (
+            <div className="bg-[#1c1c1f]/80 border border-zinc-800/90 rounded-2xl p-8 text-center text-zinc-400 text-xs sm:text-sm">
+              <Film className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
+              <p>Hiện tại chưa có suất chiếu cho phim nào.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-5">
+              {hotMovies.map((movie) => (
                 <div
-                  className={`relative aspect-[3/4] w-full bg-gradient-to-br ${movie.bannerGradient} p-4 flex flex-col justify-between overflow-hidden`}
+                  key={movie.movieId}
+                  className="group relative bg-[#1c1c1f] rounded-2xl overflow-hidden border border-zinc-800/90 hover:border-zinc-700/80 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl flex flex-col"
                 >
-                  {/* Background Cinema Graphic Elements */}
-                  <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-white/5 blur-xl pointer-events-none"></div>
-                  
-                  {/* Top Badges */}
-                  <div className="flex items-center justify-between z-10">
-                    <span className="bg-black/60 backdrop-blur-md text-white font-extrabold text-[10px] sm:text-xs px-2 py-0.5 rounded-md border border-white/10">
-                      {movie.ageLimit}
-                    </span>
-                    <span className="bg-[#e50914] text-white font-extrabold text-[10px] sm:text-xs px-2 py-0.5 rounded-md shadow-md">
-                      ★ {movie.rating}
-                    </span>
+                  {/* Poster Graphic Artwork */}
+                  <div className="relative aspect-[3/4] w-full bg-gradient-to-br from-zinc-800 to-zinc-950 flex flex-col justify-between overflow-hidden">
+                    {movie.posterUrl ? (
+                      <img
+                        src={movie.posterUrl}
+                        alt={movie.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
+                        <Film className="w-10 h-10 text-white/20 mb-2 group-hover:scale-110 group-hover:text-white/40 transition-all" />
+                        <p className="text-white font-extrabold text-sm sm:text-base leading-tight drop-shadow-md group-hover:text-[#e50914] transition-colors">
+                          {movie.title}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Top Badges */}
+                    <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-10 pointer-events-none">
+                      <span className="bg-black/70 backdrop-blur-md text-white font-extrabold text-[10px] sm:text-xs px-2 py-0.5 rounded-md border border-white/10">
+                        {movie.ageLimit || 'P'}
+                      </span>
+                      <span className="bg-[#e50914] text-white font-extrabold text-[10px] sm:text-xs px-2 py-0.5 rounded-md shadow-md">
+                        Đang chiếu
+                      </span>
+                    </div>
+
+                    {/* Bottom Duration info */}
+                    <div className="absolute bottom-2.5 left-2.5 right-2.5 z-10 flex items-center justify-between text-[11px] text-zinc-300 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-lg">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-zinc-400" />
+                        <span>{movie.duration ? `${movie.duration}p` : '120p'}</span>
+                      </span>
+                      <span className="text-emerald-400 font-medium truncate max-w-[80px]">
+                        {movie.genre || 'Phim rạp'}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Center Film Title Art */}
-                  <div className="z-10 my-auto text-center py-4">
-                    <Film className="w-10 h-10 mx-auto text-white/20 mb-2 group-hover:scale-110 group-hover:text-white/40 transition-all" />
-                    <p className="text-white font-extrabold text-sm sm:text-base leading-tight drop-shadow-md group-hover:text-[#e50914] transition-colors">
-                      {movie.title}
-                    </p>
-                  </div>
+                  {/* Movie Meta Information */}
+                  <div className="p-3 sm:p-4 flex flex-col flex-1 justify-between space-y-3">
+                    <div>
+                      <h3
+                        className="text-xs sm:text-sm font-bold text-white group-hover:text-[#e50914] transition-colors line-clamp-1"
+                        title={movie.title}
+                      >
+                        {movie.title}
+                      </h3>
+                      <p className="text-[11px] text-zinc-400 line-clamp-1 mt-0.5">
+                        {movie.genre || 'Chưa cập nhật'}
+                      </p>
+                    </div>
 
-                  {/* Bottom Duration info */}
-                  <div className="z-10 flex items-center justify-between text-[11px] text-zinc-300 bg-black/40 backdrop-blur-sm px-2 py-1 rounded-lg">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-zinc-400" />
-                      <span>{movie.duration}</span>
-                    </span>
-                    <span className="text-emerald-400 font-medium">{movie.releaseDate}</span>
+                    <button
+                      onClick={() => navigate(`/booking?movieId=${movie.movieId}`)}
+                      type="button"
+                      className="w-full bg-[#e50914] hover:bg-[#b80710] text-white text-xs font-bold py-2 px-3 rounded-xl transition duration-150 shadow-md shadow-red-950/20 flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <Ticket className="w-3.5 h-3.5" />
+                      <span>Đặt vé</span>
+                    </button>
                   </div>
                 </div>
-
-                {/* Movie Meta Information */}
-                <div className="p-3 sm:p-4 flex flex-col flex-1 justify-between space-y-3">
-                  <div>
-                    <h3 className="text-xs sm:text-sm font-bold text-white group-hover:text-[#e50914] transition-colors line-clamp-1">
-                      {movie.title}
-                    </h3>
-                    <p className="text-[11px] text-zinc-400 line-clamp-1 mt-0.5">
-                      {movie.genre}
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() => navigate(`/booking?movieId=${movie.id}`)}
-                    type="button"
-                    className="w-full bg-[#e50914] hover:bg-[#b80710] text-white text-xs font-bold py-2 px-3 rounded-xl transition duration-150 shadow-md shadow-red-950/20 flex items-center justify-center gap-1 cursor-pointer"
-                  >
-                    <Ticket className="w-3.5 h-3.5" />
-                    <span>Đặt vé</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
 
       </main>

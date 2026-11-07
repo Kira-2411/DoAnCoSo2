@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   UtensilsCrossed, 
@@ -7,12 +7,14 @@ import {
   ShoppingCart, 
   Check, 
   Sparkles,
-  Ticket
+  Ticket,
+  Loader2
 } from 'lucide-react';
 
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import MessengerButton from '../components/MessengerButton';
+import foodApi from '../api/foodApi';
 
 // Import các ảnh bắp nước của Akashi
 import bapImg1 from '../assets/images/AkashiBap.png';
@@ -21,123 +23,87 @@ import coImg from '../assets/images/AkashiCo.png';
 import vuiImg from '../assets/images/AkashiVui.png';
 import akashiImg from '../assets/images/Akashi.png';
 
-// Dữ liệu món ăn và combo
-const FOOD_ITEMS = [
-  // COMBO
-  {
-    id: 1,
-    name: 'Bắp + Nước',
-    price: 90000,
-    priceFormatted: '90,000 VNĐ',
-    category: 'COMBO',
-    badge: 'Combo',
-    image: vuiImg,
-    description: '1 Bắp ngọt vừa giòn thơm + 1 Ly nước ngọt mát lạnh tự chọn.',
-  },
-  {
-    id: 2,
-    name: 'Combo 1 bắp 1 nước',
-    price: 65000,
-    priceFormatted: '65,000 VNĐ',
-    category: 'COMBO',
-    badge: 'Combo',
-    image: akashiImg,
-    description: 'Tiết kiệm hơn với 1 Bắp bơ truyền thống + 1 Nước ngọt size vừa.',
-  },
-  {
-    id: 3,
-    name: 'Combo 2 bắp 2 nước',
-    price: 120000,
-    priceFormatted: '120,000 VNĐ',
-    category: 'COMBO',
-    badge: 'Combo',
-    image: vuiImg,
-    description: 'Dành cho 2 người: 2 Bắp tùy chọn vị (ngọt/phô mai) + 2 Ly nước lớn.',
-  },
-  {
-    id: 4,
-    name: 'Combo Party Gia Đình',
-    price: 165000,
-    priceFormatted: '165,000 VNĐ',
-    category: 'COMBO',
-    badge: 'Combo',
-    image: bapImg2,
-    description: '2 Bắp lớn phô mai / caramel + 3 Nước ngọt lớn tặng kèm snack.',
-  },
+// Lấy hình ảnh đại diện cho món ăn
+const getFoodImage = (item) => {
+  if (item.img) return item.img;
+  const cat = (item.category || '').toLowerCase();
+  const name = (item.name || '').toLowerCase();
 
-  // BẮP RANG
-  {
-    id: 5,
-    name: 'Bắp ngọt (vừa)',
-    price: 45000,
-    priceFormatted: '45,000 VNĐ',
-    category: 'BAP',
-    badge: 'Bắp',
-    image: bapImg1,
-    description: 'Bắp rang bơ đường truyền thống giòn rụm, thơm ngậy.',
-  },
-  {
-    id: 6,
-    name: 'Bắp phô mai (vừa)',
-    price: 55000,
-    priceFormatted: '55,000 VNĐ',
-    category: 'BAP',
-    badge: 'Bắp',
-    image: bapImg2,
-    description: 'Bắp rang lắc bột phô mai mặn mà béo ngậy khó cưỡng.',
-  },
-  {
-    id: 7,
-    name: 'Bắp caramel (lớn)',
-    price: 60000,
-    priceFormatted: '60,000 VNĐ',
-    category: 'BAP',
-    badge: 'Bắp',
-    image: bapImg1,
-    description: 'Bắp rang phủ sốt caramel đậm vị ngọt ngào đặc biệt.',
-  },
+  if (cat.includes('bắp')) {
+    if (name.includes('phô mai')) return bapImg2;
+    return bapImg1;
+  }
+  if (cat.includes('nước')) {
+    return coImg;
+  }
+  if (cat.includes('combo')) {
+    if (name.includes('1 bắp 1 nước')) return akashiImg;
+    return vuiImg;
+  }
+  return akashiImg;
+};
 
-  // THỨC UỐNG
-  {
-    id: 8,
-    name: 'Nước ngọt ly lớn',
-    price: 30000,
-    priceFormatted: '30,000 VNĐ',
-    category: 'NUOC',
-    badge: 'Nước',
-    image: coImg,
-    description: 'Tùy chọn: Coca-Cola, Sprite, Fanta nhiều đá sảng khoái.',
-  },
-  {
-    id: 9,
-    name: 'Trà đào hạt chia',
-    price: 35000,
-    priceFormatted: '35,000 VNĐ',
-    category: 'NUOC',
-    badge: 'Nước',
-    image: coImg,
-    description: 'Trà đào thơm thanh mát kèm đào miếng giòn và hạt chia bổ dưỡng.',
-  },
-  {
-    id: 10,
-    name: 'Nước suối Dasani 500ml',
-    price: 15000,
-    priceFormatted: '15,000 VNĐ',
-    category: 'NUOC',
-    badge: 'Nước',
-    image: coImg,
-    description: 'Nước khoáng tinh khiết đóng chai 500ml.',
-  },
-];
+// Mô tả mặc định nếu database chưa có trường description
+const getFoodDescription = (item) => {
+  const cat = (item.category || '').toLowerCase();
+  const name = (item.name || '').toLowerCase();
+
+  if (cat.includes('combo')) {
+    return 'Combo bắp nước siêu tiết kiệm kèm trải nghiệm điện ảnh trọn vẹn.';
+  }
+  if (cat.includes('bắp')) {
+    if (name.includes('phô mai')) return 'Bắp rang lắc bột phô mai mặn mà béo ngậy.';
+    return 'Bắp rang bơ đường truyền thống giòn rụm, thơm ngậy.';
+  }
+  if (cat.includes('nước')) {
+    return 'Thức uống mát lạnh sảng khoái đánh tan cơn khát.';
+  }
+  return 'Món ăn kèm thơm ngon tại quầy bắp nước Akashi Cinema.';
+};
 
 const FoodPage = () => {
   const navigate = useNavigate();
   // Tab hiện tại: 'COMBO' | 'BAP' | 'NUOC'
   const [activeTab, setActiveTab] = useState('COMBO');
+  // Danh sách món ăn từ database
+  const [foods, setFoods] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   // Giỏ hàng món ăn { [itemId]: quantity }
   const [cart, setCart] = useState({});
 
-  const filteredItems = FOOD_ITEMS.filter((item) => item.category === activeTab);
+  // Tải danh sách món ăn từ database theo danh mục
+  useEffect(() => {
+    let isMounted = true;
+    const fetchFoods = async () => {
+      try {
+        setLoading(true);
+        let categoryParam;
+        if (activeTab === 'COMBO') categoryParam = 'Combo';
+        else if (activeTab === 'BAP') categoryParam = 'Bắp';
+        else if (activeTab === 'NUOC') categoryParam = 'Nước';
+
+        const res = await foodApi.getFoods({ category: categoryParam });
+        if (isMounted) {
+          setFoods(res.data || []);
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải danh sách món ăn:', err);
+        if (isMounted) {
+          setFoods([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchFoods();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab]);
 
   const handleIncrease = (id) => {
     setCart((prev) => ({
@@ -164,7 +130,7 @@ const FoodPage = () => {
   // Tính tổng số món và tổng tiền
   const totalQuantity = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
   const totalPrice = Object.entries(cart).reduce((sum, [id, qty]) => {
-    const item = FOOD_ITEMS.find((f) => f.id === Number(id));
+    const item = foods.find((f) => f.foodId === Number(id));
     return sum + (item ? item.price * qty : 0);
   }, 0);
 
@@ -233,95 +199,111 @@ const FoodPage = () => {
 
         {/* Section: Lưới món ăn & Combo (Khớp mẫu thẻ UI/food.png) */}
         <section aria-label="Danh sách món ăn">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 sm:gap-6">
-            {filteredItems.map((item) => {
-              const qty = cart[item.id] || 0;
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-zinc-400 bg-[#1c1c1f]/40 rounded-3xl border border-zinc-800">
+              <Loader2 className="w-8 h-8 animate-spin text-[#e50914] mb-3" />
+              <p className="text-sm font-medium">Đang tải danh sách món ăn từ rạp...</p>
+            </div>
+          ) : foods.length === 0 ? (
+            <div className="bg-[#1c1c1f]/80 border border-zinc-800/90 rounded-3xl p-12 text-center text-zinc-400 space-y-2">
+              <UtensilsCrossed className="w-10 h-10 text-zinc-600 mx-auto mb-2" />
+              <h3 className="text-base font-bold text-white">Chưa có món trong danh mục này</h3>
+              <p className="text-xs text-zinc-500">Vui lòng chọn danh mục khác để xem menu của rạp nhé!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 sm:gap-6">
+              {foods.map((item) => {
+                const qty = cart[item.foodId] || 0;
+                const imageSrc = getFoodImage(item);
+                const desc = getFoodDescription(item);
+                const priceFormatted = (item.price || 0).toLocaleString('vi-VN') + ' VNĐ';
 
-              return (
-                <div
-                  key={item.id}
-                  className="group relative bg-[#1c1c1f] rounded-3xl border border-zinc-800/90 hover:border-zinc-700/80 p-4 shadow-xl hover:shadow-2xl transition-all duration-300 flex flex-col justify-between"
-                >
-                  {/* Khung hình ảnh món ăn */}
-                  <div className="relative aspect-[4/3] w-full bg-[#131316] rounded-2xl overflow-hidden p-3 flex items-center justify-center border border-zinc-800/70">
-                    
-                    {/* Huy hiệu đỏ ở góc trên bên phải (khớp mẫu Combo trong UI/food.png) */}
-                    <div className="absolute top-3 right-3 z-10">
-                      <span className="bg-[#e50914] text-white font-extrabold text-[11px] sm:text-xs px-3 py-1 rounded-full shadow-md">
-                        {item.badge}
-                      </span>
+                return (
+                  <div
+                    key={item.foodId}
+                    className="group relative bg-[#1c1c1f] rounded-3xl border border-zinc-800/90 hover:border-zinc-700/80 p-4 shadow-xl hover:shadow-2xl transition-all duration-300 flex flex-col justify-between"
+                  >
+                    {/* Khung hình ảnh món ăn */}
+                    <div className="relative aspect-[4/3] w-full bg-[#131316] rounded-2xl overflow-hidden p-3 flex items-center justify-center border border-zinc-800/70">
+                      
+                      {/* Huy hiệu đỏ ở góc trên bên phải (khớp mẫu Combo trong UI/food.png) */}
+                      <div className="absolute top-3 right-3 z-10">
+                        <span className="bg-[#e50914] text-white font-extrabold text-[11px] sm:text-xs px-3 py-1 rounded-full shadow-md">
+                          {item.category || 'Món ngon'}
+                        </span>
+                      </div>
+
+                      {/* Hình ảnh hoạt hình Akashi */}
+                      <img
+                        src={imageSrc}
+                        alt={item.name}
+                        className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300 drop-shadow-md select-none"
+                      />
                     </div>
 
-                    {/* Hình ảnh hoạt hình Akashi */}
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300 drop-shadow-md select-none"
-                    />
-                  </div>
+                    {/* Thông tin & giá món */}
+                    <div className="pt-4 space-y-3 flex-1 flex flex-col justify-between">
+                      <div>
+                        {/* Tên món màu trắng in đậm (khớp UI/food.png) */}
+                        <h3 className="text-base sm:text-lg font-bold text-white group-hover:text-[#e50914] transition-colors">
+                          {item.name}
+                        </h3>
 
-                  {/* Thông tin & giá món */}
-                  <div className="pt-4 space-y-3 flex-1 flex flex-col justify-between">
-                    <div>
-                      {/* Tên món màu trắng in đậm (khớp UI/food.png) */}
-                      <h3 className="text-base sm:text-lg font-bold text-white group-hover:text-[#e50914] transition-colors">
-                        {item.name}
-                      </h3>
+                        {/* Mô tả ngắn */}
+                        <p className="text-xs text-zinc-400 line-clamp-2 mt-1">
+                          {desc}
+                        </p>
 
-                      {/* Mô tả ngắn */}
-                      <p className="text-xs text-zinc-400 line-clamp-2 mt-1">
-                        {item.description}
-                      </p>
+                        {/* Giá tiền in đậm màu đỏ đặc trưng (khớp UI/food.png) */}
+                        <p className="text-base sm:text-lg font-black text-[#e50914] mt-2">
+                          {priceFormatted}
+                        </p>
+                      </div>
 
-                      {/* Giá tiền in đậm màu đỏ đặc trưng (khớp UI/food.png) */}
-                      <p className="text-base sm:text-lg font-black text-[#e50914] mt-2">
-                        {item.priceFormatted}
-                      </p>
-                    </div>
+                      {/* Bộ chọn số lượng / nút mua */}
+                      <div className="pt-2 flex items-center justify-between">
+                        {qty > 0 ? (
+                          <div className="flex items-center space-x-3 bg-zinc-900 border border-zinc-700/80 px-2.5 py-1.5 rounded-2xl w-full justify-between">
+                            <button
+                              onClick={() => handleDecrease(item.foodId)}
+                              type="button"
+                              className="w-7 h-7 rounded-xl bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-white transition cursor-pointer"
+                              aria-label="Giảm số lượng"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
 
-                    {/* Bộ chọn số lượng / nút mua */}
-                    <div className="pt-2 flex items-center justify-between">
-                      {qty > 0 ? (
-                        <div className="flex items-center space-x-3 bg-zinc-900 border border-zinc-700/80 px-2.5 py-1.5 rounded-2xl w-full justify-between">
+                            <span className="text-sm font-bold text-white px-2">
+                              {qty}
+                            </span>
+
+                            <button
+                              onClick={() => handleIncrease(item.foodId)}
+                              type="button"
+                              className="w-7 h-7 rounded-xl bg-[#e50914] hover:bg-[#b80710] flex items-center justify-center text-white transition cursor-pointer"
+                              aria-label="Tăng số lượng"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
                           <button
-                            onClick={() => handleDecrease(item.id)}
+                            onClick={() => handleIncrease(item.foodId)}
                             type="button"
-                            className="w-7 h-7 rounded-xl bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-white transition cursor-pointer"
-                            aria-label="Giảm số lượng"
+                            className="w-full bg-[#1e1e22] hover:bg-[#e50914] text-zinc-300 hover:text-white border border-zinc-700/70 hover:border-[#e50914] text-xs sm:text-sm font-bold py-2.5 px-4 rounded-2xl transition-all duration-150 flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm active:scale-95"
                           >
-                            <Minus className="w-3.5 h-3.5" />
+                            <Plus className="w-4 h-4" />
+                            <span>Thêm vào đơn</span>
                           </button>
+                        )}
+                      </div>
 
-                          <span className="text-sm font-bold text-white px-2">
-                            {qty}
-                          </span>
-
-                          <button
-                            onClick={() => handleIncrease(item.id)}
-                            type="button"
-                            className="w-7 h-7 rounded-xl bg-[#e50914] hover:bg-[#b80710] flex items-center justify-center text-white transition cursor-pointer"
-                            aria-label="Tăng số lượng"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleIncrease(item.id)}
-                          type="button"
-                          className="w-full bg-[#1e1e22] hover:bg-[#e50914] text-zinc-300 hover:text-white border border-zinc-700/70 hover:border-[#e50914] text-xs sm:text-sm font-bold py-2.5 px-4 rounded-2xl transition-all duration-150 flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm active:scale-95"
-                        >
-                          <Plus className="w-4 h-4" />
-                          <span>Thêm vào đơn</span>
-                        </button>
-                      )}
                     </div>
-
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </section>
 
       </main>

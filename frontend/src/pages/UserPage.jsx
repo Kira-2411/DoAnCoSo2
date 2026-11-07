@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Mail, 
@@ -16,53 +16,34 @@ import {
   Sparkles,
   Lock,
   ChevronRight,
-  Calendar
+  Calendar,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import MessengerButton from '../components/MessengerButton';
 import { useAuth } from '../contexts/AuthContext';
+import userApi from '../api/userApi';
+import newsApi from '../api/newsApi';
 
-// Dữ liệu mẫu lịch sử vé cá nhân
-const USER_TICKETS = [
-  {
-    orderId: '53',
-    movieTitle: 'Bóng rổ đường phố',
-    showtime: '26/06/2026 23:00',
-    room: 'Phòng 4',
-    seats: 'A08',
-    status: 'PAID',
-    statusText: 'Đã thanh toán',
-    totalPrice: '60.000 đ',
-  },
-  {
-    orderId: '50',
-    movieTitle: 'Bản giao hưởng địa cầu',
-    showtime: '21/06/2026 10:00',
-    room: 'Phòng 1',
-    seats: 'C07',
-    status: 'PAID',
-    statusText: 'Đã thanh toán',
-    totalPrice: '60.000 đ',
-  },
-];
-
-// Dữ liệu mẫu ưu đãi của thành viên
-const USER_VOUCHERS = [
-  {
-    code: 'GIAM10',
-    title: 'Giảm 10% vé xem phim cuối tuần',
-    desc: 'Áp dụng cho đơn từ 100.000đ',
-    expiry: '31/12/2026',
-  },
-  {
-    code: 'GIAM20K',
-    title: 'Giảm 20.000đ combo bắp nước',
-    desc: 'Áp dụng cho đơn từ 150.000đ',
-    expiry: '15/11/2026',
-  },
-];
+// Định dạng thời gian
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return 'Đang cập nhật';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${hours}:${minutes} ${day}/${month}/${year}`;
+  } catch {
+    return dateStr;
+  }
+};
 
 const UserPage = () => {
   const { user, logout } = useAuth();
@@ -71,23 +52,137 @@ const UserPage = () => {
   // Tab con trong trang cá nhân: 'INFO' | 'TICKETS' | 'VOUCHERS'
   const [activeTab, setActiveTab] = useState('INFO');
 
+  // Thông tin người dùng
+  const [profile, setProfile] = useState(user);
+  const [displayName, setDisplayName] = useState(user?.username || 'Gia Bảo');
+  const [phoneNumber, setPhoneNumber] = useState(user?.phone || '');
+
   // Trạng thái modal chỉnh sửa thông tin
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [displayName, setDisplayName] = useState(user?.username || 'Gia Bảo');
-  const [phoneNumber, setPhoneNumber] = useState(user?.phone || 'Chưa cập nhật');
+  const [savingProfile, setSavingProfile] = useState(false);
   const [editSuccessMsg, setEditSuccessMsg] = useState('');
+  const [editErrorMsg, setEditErrorMsg] = useState('');
 
-  // Dữ liệu hiển thị (kết hợp tài khoản thực tế và mẫu theo UI/user.png)
-  const emailDisplay = user?.email || 'baonng.25it@vku.udn.vn';
-  const roleDisplay = user?.role ? `THÀNH VIÊN ${user.role}` : 'THÀNH VIÊN ADMIN';
+  // Lịch sử vé và kho ưu đãi từ database
+  const [tickets, setTickets] = useState([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+  const [vouchers, setVouchers] = useState([]);
+  const [loadingVouchers, setLoadingVouchers] = useState(false);
 
-  const handleSaveProfile = (e) => {
+  // Tải thông tin cá nhân từ backend
+  useEffect(() => {
+    let isMounted = true;
+    const fetchProfile = async () => {
+      try {
+        const res = await userApi.getProfile();
+        if (isMounted && res.data) {
+          setProfile(res.data);
+          setDisplayName(res.data.username || '');
+          setPhoneNumber(res.data.phone || '');
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải thông tin cá nhân:', err);
+      }
+    };
+
+    if (user) {
+      fetchProfile();
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  // Tải danh sách vé khi chuyển sang tab TICKETS
+  useEffect(() => {
+    let isMounted = true;
+    const fetchTickets = async () => {
+      try {
+        setLoadingTickets(true);
+        const res = await userApi.getMyBookings({ page: 0, size: 20 });
+        if (isMounted) {
+          setTickets(res.data?.content || []);
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải lịch sử vé:', err);
+        if (isMounted) {
+          setTickets([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingTickets(false);
+        }
+      }
+    };
+
+    if (user && activeTab === 'TICKETS') {
+      fetchTickets();
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [user, activeTab]);
+
+  // Tải danh sách voucher khuyến mãi khi chuyển sang tab VOUCHERS
+  useEffect(() => {
+    let isMounted = true;
+    const fetchVouchers = async () => {
+      try {
+        setLoadingVouchers(true);
+        const res = await newsApi.getActivePromotions();
+        if (isMounted) {
+          setVouchers(res.data || []);
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải voucher:', err);
+        if (isMounted) {
+          setVouchers([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingVouchers(false);
+        }
+      }
+    };
+
+    if (activeTab === 'VOUCHERS') {
+      fetchVouchers();
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab]);
+
+  // Dữ liệu hiển thị
+  const emailDisplay = profile?.email || user?.email || 'baonng.25it@vku.udn.vn';
+  const roleDisplay = profile?.role ? `THÀNH VIÊN ${profile.role}` : (user?.role ? `THÀNH VIÊN ${user.role}` : 'THÀNH VIÊN ADMIN');
+
+  // Lưu thông tin cá nhân lên database
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-    setEditSuccessMsg('Cập nhật thông tin thành công!');
-    setTimeout(() => {
+    try {
+      setSavingProfile(true);
+      setEditErrorMsg('');
       setEditSuccessMsg('');
-      setIsEditModalOpen(false);
-    }, 1200);
+
+      const res = await userApi.updateProfile({
+        username: displayName.trim(),
+        phone: phoneNumber.trim(),
+      });
+
+      setProfile(res.data);
+      setEditSuccessMsg('Cập nhật thông tin thành công!');
+      setTimeout(() => {
+        setEditSuccessMsg('');
+        setIsEditModalOpen(false);
+      }, 1200);
+    } catch (err) {
+      console.error('Lỗi khi cập nhật hồ sơ:', err);
+      const msg = err.response?.data?.message || 'Cập nhật thất bại. Vui lòng kiểm tra lại số điện thoại!';
+      setEditErrorMsg(msg);
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   return (
@@ -258,71 +353,126 @@ const UserPage = () => {
         {/* Tab 2: Lịch sử vé đã đặt */}
         {activeTab === 'TICKETS' && (
           <div className="space-y-4 max-w-xl mx-auto animate-in fade-in duration-200">
-            {USER_TICKETS.map((t) => (
-              <div
-                key={t.orderId}
-                className="bg-[#1c1c1f] border border-zinc-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-2"
-              >
-                <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-                  <span className="font-black text-[#e50914] text-base">
-                    Đơn #{t.orderId}
-                  </span>
-                  <span className="bg-emerald-500 text-black text-xs font-bold px-2.5 py-0.5 rounded-full">
-                    {t.statusText}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-zinc-400">Phim:</span>
-                  <span className="text-white font-bold">{t.movieTitle}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-zinc-400">Suất chiếu:</span>
-                  <span className="text-zinc-200">{t.showtime}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-zinc-400">Ghế:</span>
-                  <span className="text-red-400 font-bold">{t.seats} ({t.room})</span>
-                </div>
-                <div className="flex justify-between text-sm pt-1 border-t border-zinc-800/60">
-                  <span className="text-zinc-400">Tổng thanh toán:</span>
-                  <span className="text-[#e50914] font-black">{t.totalPrice}</span>
-                </div>
+            {loadingTickets ? (
+              <div className="flex flex-col items-center justify-center py-16 text-zinc-400 bg-[#1c1c1f]/60 rounded-2xl border border-zinc-800">
+                <Loader2 className="w-8 h-8 animate-spin text-[#e50914] mb-3" />
+                <p className="text-sm font-medium">Đang tải lịch sử vé của bạn...</p>
               </div>
-            ))}
+            ) : tickets.length === 0 ? (
+              <div className="bg-[#1c1c1f] border border-zinc-800 rounded-2xl p-10 text-center text-zinc-400 space-y-3">
+                <Ticket className="w-10 h-10 text-zinc-600 mx-auto" />
+                <h3 className="text-base font-bold text-white">Bạn chưa có vé xem phim nào</h3>
+                <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                  Hãy chọn phim yêu thích và đặt vé ngay để tận hưởng trải nghiệm điện ảnh đỉnh cao cùng Akashi Cinema!
+                </p>
+                <button
+                  onClick={() => navigate('/movies')}
+                  type="button"
+                  className="mt-2 bg-[#e50914] hover:bg-[#b80710] text-white text-xs font-bold py-2.5 px-5 rounded-xl transition cursor-pointer shadow-md inline-flex items-center gap-1.5"
+                >
+                  <Ticket className="w-4 h-4" />
+                  <span>Khám phá phim đang chiếu</span>
+                </button>
+              </div>
+            ) : (
+              tickets.map((t) => {
+                const isPaid = t.status === 'PAID';
+                const statusText = isPaid ? 'Đã thanh toán' : (t.status === 'PENDING' ? 'Chờ thanh toán' : (t.status === 'CANCELLED' ? 'Đã hủy' : t.status));
+                const badgeColor = isPaid ? 'bg-emerald-500 text-black' : (t.status === 'PENDING' ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-300 border border-zinc-700');
+                const seatList = Array.isArray(t.seats) ? t.seats.join(', ') : (t.seats || 'Chưa chọn ghế');
+                const totalFormatted = (t.totalPrice || 0).toLocaleString('vi-VN') + ' đ';
+
+                return (
+                  <div
+                    key={t.bookingId || t.bookingCode}
+                    className="bg-[#1c1c1f] border border-zinc-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-2.5 hover:border-zinc-700 transition-colors"
+                  >
+                    <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+                      <span className="font-black text-[#e50914] text-base">
+                        Đơn #{t.bookingCode || t.bookingId}
+                      </span>
+                      <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${badgeColor}`}>
+                        {statusText}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-zinc-400">Phim:</span>
+                      <span className="text-white font-bold text-right">{t.movieTitle}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-zinc-400">Suất chiếu:</span>
+                      <span className="text-zinc-200">{formatDateTime(t.showtime)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-zinc-400">Ghế & Phòng:</span>
+                      <span className="text-red-400 font-bold">{seatList} ({t.roomName || 'Rạp Akashi'})</span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-1 border-t border-zinc-800/60">
+                      <span className="text-zinc-400">Tổng thanh toán:</span>
+                      <span className="text-[#e50914] font-black">{totalFormatted}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         )}
 
         {/* Tab 3: Kho ưu đãi */}
         {activeTab === 'VOUCHERS' && (
           <div className="space-y-4 max-w-xl mx-auto animate-in fade-in duration-200">
-            {USER_VOUCHERS.map((v) => (
-              <div
-                key={v.code}
-                className="bg-[#1c1c1f] border border-zinc-800 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-lg"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="px-2.5 py-0.5 rounded-lg bg-red-600/20 text-[#e50914] font-black text-sm border border-red-600/30">
-                      {v.code}
-                    </span>
-                    <span className="text-xs text-zinc-400 font-medium">Hạn: {v.expiry}</span>
-                  </div>
-                  <p className="text-sm font-bold text-white mt-1">{v.title}</p>
-                  <p className="text-xs text-zinc-400">{v.desc}</p>
-                </div>
-
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(v.code);
-                    alert(`Đã lưu mã ${v.code} vào bộ nhớ tạm!`);
-                  }}
-                  type="button"
-                  className="bg-[#e50914] hover:bg-[#b80710] text-white text-xs font-bold py-2 px-3.5 rounded-xl transition cursor-pointer flex-shrink-0"
-                >
-                  Dùng ngay
-                </button>
+            {loadingVouchers ? (
+              <div className="flex flex-col items-center justify-center py-16 text-zinc-400 bg-[#1c1c1f]/60 rounded-2xl border border-zinc-800">
+                <Loader2 className="w-8 h-8 animate-spin text-[#e50914] mb-3" />
+                <p className="text-sm font-medium">Đang tải mã ưu đãi từ hệ thống...</p>
               </div>
-            ))}
+            ) : vouchers.length === 0 ? (
+              <div className="bg-[#1c1c1f] border border-zinc-800 rounded-2xl p-10 text-center text-zinc-400 space-y-2">
+                <Tag className="w-10 h-10 text-zinc-600 mx-auto" />
+                <h3 className="text-base font-bold text-white">Chưa có mã ưu đãi</h3>
+                <p className="text-xs text-zinc-500">Các chương trình khuyến mãi mới nhất sẽ được thông báo sớm!</p>
+              </div>
+            ) : (
+              vouchers.map((v) => {
+                const discountTitle = v.discountType === 'PERCENT'
+                  ? `Giảm ${v.discountValue}% vé xem phim`
+                  : `Giảm ${Number(v.discountValue).toLocaleString('vi-VN')} đ`;
+                const conditionDesc = v.minOrderValue
+                  ? `Áp dụng cho đơn từ ${Number(v.minOrderValue).toLocaleString('vi-VN')} đ`
+                  : 'Áp dụng cho mọi đơn đặt vé trực tuyến';
+
+                return (
+                  <div
+                    key={v.promoId || v.code}
+                    className="bg-[#1c1c1f] border border-zinc-800 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-lg hover:border-zinc-700 transition-colors"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="px-2.5 py-0.5 rounded-lg bg-red-600/20 text-[#e50914] font-black text-sm border border-red-600/30">
+                          {v.code}
+                        </span>
+                        <span className="text-xs text-zinc-400 font-medium">
+                          Hạn: {v.expiryDate ? formatDateTime(v.expiryDate) : 'Vô thời hạn'}
+                        </span>
+                      </div>
+                      <p className="text-sm font-bold text-white mt-1">{discountTitle}</p>
+                      <p className="text-xs text-zinc-400">{conditionDesc}</p>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(v.code);
+                        alert(`Đã lưu mã ${v.code} vào bộ nhớ tạm!`);
+                      }}
+                      type="button"
+                      className="bg-[#e50914] hover:bg-[#b80710] text-white text-xs font-bold py-2 px-3.5 rounded-xl transition cursor-pointer flex-shrink-0"
+                    >
+                      Dùng ngay
+                    </button>
+                  </div>
+                );
+              })
+            )}
           </div>
         )}
 
@@ -351,6 +501,13 @@ const UserPage = () => {
               </div>
             )}
 
+            {editErrorMsg && (
+              <div className="p-3 bg-rose-950/40 border border-rose-500/50 rounded-xl text-rose-300 text-xs font-medium flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{editErrorMsg}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSaveProfile} className="space-y-4 text-xs sm:text-sm">
               <div>
                 <label className="text-zinc-400 block mb-1 font-semibold">Tên hiển thị</label>
@@ -367,10 +524,11 @@ const UserPage = () => {
                 <label className="text-zinc-400 block mb-1 font-semibold">Số điện thoại</label>
                 <input
                   type="tel"
-                  value={phoneNumber === 'Chưa cập nhật' ? '' : phoneNumber}
+                  value={phoneNumber}
                   placeholder="Nhập số điện thoại (ví dụ: 0912345678)"
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-[#e50914]"
+                  required
                 />
               </div>
 
@@ -394,9 +552,17 @@ const UserPage = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#e50914] hover:bg-[#b80710] text-white font-bold py-2.5 rounded-xl transition cursor-pointer shadow-lg shadow-red-950/40"
+                  disabled={savingProfile}
+                  className="flex-1 bg-[#e50914] hover:bg-[#b80710] disabled:bg-red-900/60 text-white font-bold py-2.5 rounded-xl transition cursor-pointer shadow-lg shadow-red-950/40 flex items-center justify-center space-x-2"
                 >
-                  Lưu thay đổi
+                  {savingProfile ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <span>Lưu thay đổi</span>
+                  )}
                 </button>
               </div>
             </form>
