@@ -27,3 +27,5 @@ frontend/pnpm-debug.log*
 
 # Docker & Temp
 data/
+
+docs/UI/
