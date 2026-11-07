@@ -36,7 +36,6 @@ public class UserController {
     }
 
     @GetMapping("/me/bookings")
-    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<PageResponse<BookingHistoryResponse>> getMyBookings(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam(required = false) String status,

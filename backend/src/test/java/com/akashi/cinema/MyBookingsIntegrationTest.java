@@ -267,22 +267,22 @@ class MyBookingsIntegrationTest {
     }
 
     @Test
-    @DisplayName("3. GET /api/users/me/bookings - Đăng nhập bằng ADMIN hoặc STAFF trả về 403 FORBIDDEN")
-    void getMyBookings_NonCustomerRole_Returns403() throws Exception {
+    @DisplayName("3. GET /api/users/me/bookings - Đăng nhập bằng ADMIN hoặc STAFF thành công trả về 200 OK")
+    void getMyBookings_AdminOrStaff_Returns200() throws Exception {
         String adminToken = jwtTokenProvider.generateToken(adminUser);
         String staffToken = jwtTokenProvider.generateToken(staffUser);
 
         mockMvc.perform(get("/api/users/me/bookings")
                         .header("Authorization", "Bearer " + adminToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status", is(403)))
-                .andExpect(jsonPath("$.code", is("FORBIDDEN")));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(0)))
+                .andExpect(jsonPath("$.totalElements", is(0)));
 
         mockMvc.perform(get("/api/users/me/bookings")
                         .header("Authorization", "Bearer " + staffToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status", is(403)))
-                .andExpect(jsonPath("$.code", is("FORBIDDEN")));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(0)))
+                .andExpect(jsonPath("$.totalElements", is(0)));
     }
 
     @Test

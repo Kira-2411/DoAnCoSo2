@@ -85,7 +85,7 @@ Khi backend chạy, Swagger UI là nguồn tham chiếu chi tiết nhất cho t�
 |---|---|---|---|
 | PUT | `/users/me` | Auth | Sửa tên, số điện thoại của mình (BR-USER-01) |
 | PUT | `/users/me/password` | Auth | Đổi mật khẩu, cần mật khẩu cũ: `{ "oldPassword", "newPassword" }` |
-| GET | `/users/me/bookings` | CUSTOMER | Lịch sử đặt vé của mình, lọc `status`, có phân trang |
+| GET | `/users/me/bookings` | Auth | Lịch sử đặt vé của mình (mọi vai trò đã đăng nhập), lọc `status`, có phân trang |
 | GET | `/users` | ADMIN | Danh sách người dùng, lọc `role`, `keyword`, phân trang |
 | GET | `/users/{id}` | ADMIN | Chi tiết người dùng |
 | POST | `/users` | ADMIN | Tạo tài khoản STAFF hoặc ADMIN (BR-ROLE-03) |

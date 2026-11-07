@@ -47,7 +47,7 @@ Vai trò lưu ở `[users.role]`. Người chưa đăng nhập gọi là **Khác
 | Xem phim, suất chiếu, sơ đồ ghế, tin tức | ✔ | ✔ | ✔ | ✔ |
 | Đăng ký, đăng nhập, quên mật khẩu | ✔ | | | |
 | Giữ ghế và đặt vé online | | ✔ | | |
-| Xem vé và đơn của chính mình | | ✔ | | |
+| Xem vé và đơn của chính mình | | ✔ | ✔ | ✔ |
 | Tự hủy đơn **chờ thanh toán** của mình | | ✔ | | |
 | Bán vé tại quầy, xác nhận tiền mặt | | | ✔ | ✔ |
 | Tra cứu đơn theo mã đặt vé | | | ✔ | ✔ |
@@ -58,7 +58,7 @@ Vai trò lưu ở `[users.role]`. Người chưa đăng nhập gọi là **Khác
 | Xem thống kê doanh thu | | | | ✔ |
 
 - **BR-ROLE-01:** Phân quyền kiểm tra ở **backend** trên mọi API (`@PreAuthorize`). Ẩn nút ở giao diện chỉ để tiện dùng, không được coi là bảo vệ.
-- **BR-ROLE-02:** Khách chỉ xem được đơn có `[bookings.user_id]` bằng id của mình. Truy cập đơn của người khác trả 404 (không trả 403 để không lộ sự tồn tại).
+- **BR-ROLE-02:** Người dùng (CUSTOMER, STAFF, ADMIN) chỉ xem được đơn có `[bookings.user_id]` bằng id của mình. Truy cập đơn của người khác trả 404 (không trả 403 để không lộ sự tồn tại).
 - **BR-ROLE-03:** Tài khoản STAFF và ADMIN chỉ do Admin tạo hoặc nâng quyền. Đăng ký công khai luôn tạo CUSTOMER, không nhận trường `role` từ client.
 - **BR-ROLE-04:** Admin không được tự hạ quyền hoặc tự khóa chính mình, và không được khóa hoặc hạ quyền Admin cuối cùng của hệ thống.
 
