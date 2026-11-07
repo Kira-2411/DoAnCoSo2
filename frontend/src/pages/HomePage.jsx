@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Home as HomeIcon, 
@@ -12,7 +12,10 @@ import {
   ChevronRight,
   Clock,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Loader2,
+  TicketX,
+  LogIn
 } from 'lucide-react';
 
 import Header from '../components/Header';
@@ -20,6 +23,7 @@ import BottomNav from '../components/BottomNav';
 import MessengerButton from '../components/MessengerButton';
 import heroBannerImg from '../assets/images/AnhBiaAkashiCinema.png';
 import { useAuth } from '../contexts/AuthContext';
+import bookingApi from '../api/bookingApi';
 
 // Danh sách các mục điều hướng nhanh trong nội dung trang (Quick Nav Cards)
 const QUICK_NAV_ITEMS = [
@@ -32,79 +36,38 @@ const QUICK_NAV_ITEMS = [
   { id: 'membership', label: 'THÀNH VIÊN', icon: Award, active: false, path: '/membership' },
 ];
 
-// Dữ liệu mẫu danh sách vé đã đặt theo UI/home2.png
-const SAMPLE_TICKETS = [
-  {
-    orderId: '53',
-    status: 'PAID',
-    statusText: 'Đã thanh toán',
-    statusColor: 'bg-emerald-500 text-black',
-    email: 'baonng.25it@vku.udn.vn',
-    showtime: '26/06/2026 23:00',
-    movieTitle: 'Bóng rổ đường phố',
-    room: 'Phòng 4',
-    seats: 'A08',
-    discountCode: 'Không có',
-    totalPrice: '60.000 đ',
-    bookingTime: '26/06/2026 05:25',
-  },
-  {
-    orderId: '50',
-    status: 'PAID',
-    statusText: 'Đã thanh toán',
-    statusColor: 'bg-emerald-500 text-black',
-    email: 'baonng.25it@vku.udn.vn',
-    showtime: '21/06/2026 10:00',
-    movieTitle: 'Bản giao hưởng địa cầu',
-    room: 'Phòng 1',
-    seats: 'C07',
-    discountCode: 'Không có',
-    totalPrice: '60.000 đ',
-    bookingTime: '20/06/2026 08:04',
-  },
-  {
-    orderId: '46',
-    status: 'CANCELLED',
-    statusText: 'Đã hủy',
-    statusColor: 'bg-zinc-300 text-black',
-    email: 'baonng.25it@vku.udn.vn',
-    showtime: '21/06/2026 18:00',
-    movieTitle: 'Bóng rổ đường phố',
-    room: 'Phòng 4',
-    seats: 'F07',
-    discountCode: 'Không có',
-    totalPrice: '90.000 đ',
-    bookingTime: '20/06/2026 07:23',
-  },
-  {
-    orderId: '45',
-    status: 'PAID',
-    statusText: 'Đã thanh toán',
-    statusColor: 'bg-emerald-500 text-black',
-    email: 'baonng.25it@vku.udn.vn',
-    showtime: '18/06/2026 14:30',
-    movieTitle: 'Hành Trình Về Phía Biển',
-    room: 'Phòng 2',
-    seats: 'D10, D11',
-    discountCode: 'GIAM20K',
-    totalPrice: '160.000 đ',
-    bookingTime: '18/06/2026 10:15',
-  },
-  {
-    orderId: '42',
-    status: 'PAID',
-    statusText: 'Đã thanh toán',
-    statusColor: 'bg-emerald-500 text-black',
-    email: 'baonng.25it@vku.udn.vn',
-    showtime: '15/06/2026 20:00',
-    movieTitle: 'Thám Tử Phố Cổ',
-    room: 'Phòng 1',
-    seats: 'B04',
-    discountCode: 'Không có',
-    totalPrice: '60.000 đ',
-    bookingTime: '15/06/2026 18:40',
-  },
-];
+// Ánh xạ trạng thái đơn đặt vé từ backend sang giao diện
+const getStatusBadge = (status) => {
+  switch (status) {
+    case 'PAID':
+      return { text: 'Đã thanh toán', color: 'bg-emerald-500 text-black' };
+    case 'PENDING':
+      return { text: 'Chờ thanh toán', color: 'bg-amber-400 text-black' };
+    case 'CANCELLED':
+      return { text: 'Đã hủy', color: 'bg-zinc-600 text-white' };
+    case 'EXPIRED':
+      return { text: 'Hết hạn', color: 'bg-red-500/80 text-white' };
+    default:
+      return { text: status || 'Chưa rõ', color: 'bg-zinc-700 text-white' };
+  }
+};
+
+// Định dạng thời gian hiển thị DD/MM/YYYY HH:mm
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '—';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+  } catch {
+    return dateStr;
+  }
+};
 
 // Dữ liệu mẫu danh sách phim đang hot
 const HOT_MOVIES = [
@@ -170,6 +133,48 @@ const HomePage = () => {
   const navigate = useNavigate();
   const ticketScrollRef = useRef(null);
   const [scrollProgress, setScrollProgress] = useState(0);
+
+  // State lưu trữ dữ liệu thật từ backend
+  const [tickets, setTickets] = useState([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+  const [ticketError, setTicketError] = useState(null);
+
+  // Tải danh sách vé thật của người dùng khi đã đăng nhập
+  useEffect(() => {
+    let isMounted = true;
+    if (!user) {
+      setTickets([]);
+      setLoadingTickets(false);
+      return;
+    }
+
+    const fetchTickets = async () => {
+      try {
+        setLoadingTickets(true);
+        setTicketError(null);
+        const response = await bookingApi.getMyBookings({ page: 0, size: 10 });
+        if (isMounted) {
+          const content = response?.data?.content || [];
+          setTickets(content);
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải lịch sử vé:', err);
+        if (isMounted) {
+          setTicketError('Không thể tải lịch sử vé');
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingTickets(false);
+        }
+      }
+    };
+
+    fetchTickets();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   // Cuộn danh sách vé ngang
   const handleScrollTickets = (direction) => {
@@ -286,96 +291,160 @@ const HomePage = () => {
             </div>
           </div>
 
-          {/* Ticket Cards Carousel */}
-          <div
-            ref={ticketScrollRef}
-            onScroll={handleTicketScrollEvent}
-            className="flex gap-4 sm:gap-5 overflow-x-auto custom-scrollbar pb-3 pt-1 select-none scroll-smooth"
-          >
-            {SAMPLE_TICKETS.map((ticket) => (
-              <div
-                key={ticket.orderId}
-                className="min-w-[280px] sm:min-w-[320px] max-w-[340px] flex-shrink-0 bg-[#1c1c1f] border border-zinc-800/90 rounded-2xl p-4 sm:p-5 shadow-xl hover:border-zinc-700/80 transition-all duration-200 hover:-translate-y-0.5"
-              >
-                {/* Header card: Đơn # và trạng thái */}
-                <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800/70">
-                  <span className="text-base sm:text-lg font-black text-[#e50914]">
-                    Đơn #{ticket.orderId}
-                  </span>
-                  <span
-                    className={`text-[11px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full ${ticket.statusColor}`}
-                  >
-                    {ticket.statusText}
-                  </span>
-                </div>
-
-                {/* Details list */}
-                <div className="space-y-2 text-xs sm:text-sm">
-                  <div className="flex justify-between items-start gap-2">
-                    <span className="text-zinc-400 flex-shrink-0">Email:</span>
-                    <span className="text-zinc-200 font-medium text-right truncate max-w-[190px]">
-                      {user?.email || ticket.email}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-zinc-400 flex-shrink-0">Suất chiếu:</span>
-                    <span className="text-zinc-200 font-semibold text-right">
-                      {ticket.showtime}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-zinc-400 flex-shrink-0">Tên phim:</span>
-                    <span className="text-white font-bold text-right truncate max-w-[190px]">
-                      {ticket.movieTitle}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-zinc-400 flex-shrink-0">Số phòng:</span>
-                    <span className="text-zinc-200 font-medium text-right">
-                      {ticket.room}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-zinc-400 flex-shrink-0">Ghế:</span>
-                    <span className="text-red-400 font-bold text-right">
-                      {ticket.seats}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-zinc-400 flex-shrink-0">Mã giảm giá:</span>
-                    <span className="text-zinc-300 text-right">
-                      {ticket.discountCode}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-zinc-400 flex-shrink-0">Tổng giá vé:</span>
-                    <span className="text-[#e50914] font-extrabold text-sm sm:text-base text-right">
-                      {ticket.totalPrice}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center gap-2 pt-1 border-t border-zinc-800/50 text-[11px] text-zinc-400">
-                    <span className="flex-shrink-0">Thời gian đặt:</span>
-                    <span className="text-right">{ticket.bookingTime}</span>
-                  </div>
-                </div>
+          {/* Trạng thái chưa đăng nhập */}
+          {!user && (
+            <div className="bg-[#1c1c1f]/80 border border-zinc-800/90 rounded-2xl p-6 sm:p-8 text-center flex flex-col items-center justify-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-red-600/10 text-[#e50914] flex items-center justify-center">
+                <LogIn className="w-6 h-6 stroke-[2.5]" />
               </div>
-            ))}
-          </div>
+              <div>
+                <p className="text-white font-bold text-sm sm:text-base">
+                  Đăng nhập tài khoản để xem các vé xem phim bạn đã đặt
+                </p>
+                <p className="text-zinc-400 text-xs mt-1">
+                  Quản lý vé điện tử, mã QR và lịch sử thanh toán một cách dễ dàng
+                </p>
+              </div>
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-2 bg-[#e50914] hover:bg-[#b80710] text-white text-xs sm:text-sm font-bold px-6 py-2.5 rounded-full transition shadow-lg shadow-red-950/50 mt-1"
+              >
+                <span>Đăng nhập ngay</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
 
-          {/* Indicator bar */}
-          <div className="relative w-full h-1 bg-zinc-800/80 rounded-full overflow-hidden mt-1 max-w-xs mx-auto">
-            <div
-              className="h-full bg-[#e50914] rounded-full transition-all duration-150"
-              style={{ width: '40%', transform: `translateX(${scrollProgress * 1.5}%)` }}
-            />
-          </div>
+          {/* Trạng thái đang tải dữ liệu */}
+          {user && loadingTickets && (
+            <div className="flex flex-col items-center justify-center py-12 gap-3 text-zinc-400 bg-[#1c1c1f]/40 border border-zinc-800/50 rounded-2xl">
+              <Loader2 className="w-7 h-7 animate-spin text-[#e50914]" />
+              <span className="text-xs sm:text-sm font-medium">Đang tải danh sách vé của bạn...</span>
+            </div>
+          )}
+
+          {/* Trạng thái lỗi tải dữ liệu */}
+          {user && !loadingTickets && ticketError && (
+            <div className="bg-[#1c1c1f]/80 border border-red-900/40 rounded-2xl p-6 text-center text-zinc-400 text-xs sm:text-sm">
+              <p className="text-red-400 font-semibold">{ticketError}</p>
+            </div>
+          )}
+
+          {/* Trạng thái đã đăng nhập nhưng chưa có vé nào */}
+          {user && !loadingTickets && !ticketError && tickets.length === 0 && (
+            <div className="bg-[#1c1c1f]/80 border border-zinc-800/90 rounded-2xl p-6 sm:p-8 text-center flex flex-col items-center justify-center gap-2.5">
+              <div className="w-12 h-12 rounded-full bg-zinc-800/80 text-zinc-500 flex items-center justify-center">
+                <TicketX className="w-6 h-6" />
+              </div>
+              <p className="text-white font-bold text-sm sm:text-base">
+                Bạn chưa có đơn đặt vé nào
+              </p>
+              <p className="text-zinc-400 text-xs">
+                Hãy chọn ngay một bộ phim yêu thích để trải nghiệm rạp chiếu Akashi Cinema!
+              </p>
+              <Link
+                to="/booking"
+                className="inline-flex items-center gap-1.5 text-xs text-[#e50914] hover:underline font-bold mt-1"
+              >
+                <span>Khám phá phim & Đặt vé ngay</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          )}
+
+          {/* Ticket Cards Carousel khi có dữ liệu thật */}
+          {user && !loadingTickets && tickets.length > 0 && (
+            <>
+              <div
+                ref={ticketScrollRef}
+                onScroll={handleTicketScrollEvent}
+                className="flex gap-4 sm:gap-5 overflow-x-auto custom-scrollbar pb-3 pt-1 select-none scroll-smooth"
+              >
+                {tickets.map((ticket) => {
+                  const statusBadge = getStatusBadge(ticket.status);
+                  const seatsText = Array.isArray(ticket.seats) ? ticket.seats.join(', ') : (ticket.seats || '—');
+                  const orderCode = ticket.bookingCode || `#${ticket.bookingId}`;
+
+                  return (
+                    <div
+                      key={ticket.bookingId || ticket.bookingCode}
+                      className="min-w-[280px] sm:min-w-[320px] max-w-[340px] flex-shrink-0 bg-[#1c1c1f] border border-zinc-800/90 rounded-2xl p-4 sm:p-5 shadow-xl hover:border-zinc-700/80 transition-all duration-200 hover:-translate-y-0.5"
+                    >
+                      {/* Header card: Đơn # và trạng thái */}
+                      <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800/70">
+                        <span className="text-base sm:text-lg font-black text-[#e50914]">
+                          {orderCode.startsWith('#') ? `Đơn ${orderCode}` : `Đơn #${orderCode}`}
+                        </span>
+                        <span
+                          className={`text-[11px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full ${statusBadge.color}`}
+                        >
+                          {statusBadge.text}
+                        </span>
+                      </div>
+
+                      {/* Details list */}
+                      <div className="space-y-2 text-xs sm:text-sm">
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-zinc-400 flex-shrink-0">Email:</span>
+                          <span className="text-zinc-200 font-medium text-right truncate max-w-[190px]">
+                            {user?.email || '—'}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="text-zinc-400 flex-shrink-0">Suất chiếu:</span>
+                          <span className="text-zinc-200 font-semibold text-right">
+                            {formatDateTime(ticket.showtime)}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="text-zinc-400 flex-shrink-0">Tên phim:</span>
+                          <span className="text-white font-bold text-right truncate max-w-[190px]">
+                            {ticket.movieTitle || '—'}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="text-zinc-400 flex-shrink-0">Số phòng:</span>
+                          <span className="text-zinc-200 font-medium text-right">
+                            {ticket.roomName || '—'}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="text-zinc-400 flex-shrink-0">Ghế:</span>
+                          <span className="text-red-400 font-bold text-right">
+                            {seatsText}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="text-zinc-400 flex-shrink-0">Tổng giá vé:</span>
+                          <span className="text-[#e50914] font-extrabold text-sm sm:text-base text-right">
+                            {ticket.totalPrice != null ? `${ticket.totalPrice.toLocaleString('vi-VN')} đ` : '—'}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center gap-2 pt-1 border-t border-zinc-800/50 text-[11px] text-zinc-400">
+                          <span className="flex-shrink-0">Thời gian đặt:</span>
+                          <span className="text-right">{formatDateTime(ticket.createdAt)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Indicator bar */}
+              <div className="relative w-full h-1 bg-zinc-800/80 rounded-full overflow-hidden mt-1 max-w-xs mx-auto">
+                <div
+                  className="h-full bg-[#e50914] rounded-full transition-all duration-150"
+                  style={{ width: '40%', transform: `translateX(${scrollProgress * 1.5}%)` }}
+                />
+              </div>
+            </>
+          )}
         </section>
 
         {/* 5. Phần "PHIM ĐANG HOT" (Hot Movies Section) */}

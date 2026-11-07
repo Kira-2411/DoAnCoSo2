@@ -66,3 +66,59 @@ export const validateNewPassword = (value) => {
   return null;
 };
 
+/**
+ * Kiểm tra độ dài tối đa của chuỗi.
+ */
+export const validateMaxLength = (value, maxLength, message) => {
+  if (value && typeof value === 'string' && value.length > maxLength) {
+    return message || `Không được vượt quá ${maxLength} ký tự`;
+  }
+  return null;
+};
+
+/**
+ * Kiểm tra số nguyên dương.
+ */
+export const validatePositiveInteger = (value, message = 'Vui lòng nhập số nguyên dương') => {
+  if (value === null || value === undefined || value === '') {
+    return null; // Bỏ qua nếu rỗng, dùng validateRequired nếu bắt buộc
+  }
+  const num = Number(value);
+  if (!Number.isInteger(num) || num <= 0) {
+    return message;
+  }
+  return null;
+};
+
+/**
+ * Kiểm tra số nằm trong khoảng [min, max].
+ */
+export const validateNumberRange = (value, min, max, message) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const num = Number(value);
+  if (isNaN(num) || num < min || num > max) {
+    return message || `Giá trị phải nằm trong khoảng từ ${min} đến ${max}`;
+  }
+  return null;
+};
+
+/**
+ * Kiểm tra định dạng đường dẫn ảnh.
+ * Chấp nhận chuỗi bắt đầu bằng http://, https:// hoặc / (đường dẫn nội bộ).
+ */
+export const validateImageUrl = (value, message = 'Đường dẫn ảnh không hợp lệ (phải bắt đầu bằng http://, https:// hoặc /)') => {
+  if (!value || typeof value !== 'string') {
+    return null; // Không bắt buộc, dùng validateRequired nếu cần bắt buộc
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const isValid = trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/');
+  if (!isValid) {
+    return message;
+  }
+  return null;
+};
+
+

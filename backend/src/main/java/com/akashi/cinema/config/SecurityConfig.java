@@ -86,7 +86,7 @@ public class SecurityConfig {
                                 "/api/news/**",
                                 "/api/promotions/active"
                         ).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/users/me/bookings").hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.GET, "/api/users/me/bookings").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/users/me").authenticated()
                         .anyRequest().authenticated()
