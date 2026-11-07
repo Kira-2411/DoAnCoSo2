@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Film, 
@@ -8,155 +8,93 @@ import {
   Info, 
   Sparkles, 
   X,
-  Play
+  Play,
+  Loader2
 } from 'lucide-react';
 
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import MessengerButton from '../components/MessengerButton';
+import movieApi from '../api/movieApi';
 
-// Dữ liệu phim đang chiếu
-const NOW_SHOWING_MOVIES = [
-  {
-    id: 1,
-    title: 'Hành Trình Về Phía Biển',
-    genre: 'Tâm lý, Gia đình',
-    duration: '120 phút',
-    ageLimit: 'P',
-    ageColor: 'bg-emerald-600',
-    rating: '9.4',
-    releaseDate: '18/10/2026',
-    description: 'Hai anh em đi dọc miền Trung để tìm lại ngôi nhà tuổi thơ và hàn gắn những vết thương quá khứ.',
-    director: 'Nguyễn Quang Dũng',
-    cast: 'Thái Hòa, Kaity Nguyễn, Kiều Minh Tuấn',
-    gradient: 'from-blue-900 via-indigo-950 to-neutral-950',
-  },
-  {
-    id: 2,
-    title: 'Thám Tử Phố Cổ',
-    genre: 'Hình sự, Bí ẩn',
-    duration: '105 phút',
-    ageLimit: 'T16',
-    ageColor: 'bg-amber-600',
-    rating: '9.1',
-    releaseDate: '22/10/2026',
-    description: 'Một vụ mất tích bí ẩn giữa những con phố cổ Hà Nội về đêm dẫn đến chuỗi âm mưu nguy hiểm.',
-    director: 'Victor Vũ',
-    cast: 'Quang Sự, Quốc Cường, Lan Phương',
-    gradient: 'from-amber-950 via-stone-900 to-neutral-950',
-  },
-  {
-    id: 3,
-    title: 'Đêm Cuối Ở Hội An',
-    genre: 'Lãng mạn, Hài',
-    duration: '130 phút',
-    ageLimit: 'T13',
-    ageColor: 'bg-rose-600',
-    rating: '8.9',
-    releaseDate: '26/10/2026',
-    description: 'Chuyến du lịch cuối năm của nhóm bạn thân đưa họ vào những tình huống dở khóc dở cười và định mệnh bất ngờ.',
-    director: 'Phan Gia Nhật Linh',
-    cast: 'Nhan Phúc Vinh, Diệu Nhi, Anh Tú',
-    gradient: 'from-rose-950 via-pink-950 to-neutral-950',
-  },
-  {
-    id: 4,
-    title: 'Bóng Rổ Đường Phố',
-    genre: 'Thể thao, Nhiệt huyết',
-    duration: '110 phút',
-    ageLimit: 'P',
-    ageColor: 'bg-emerald-600',
-    rating: '9.3',
-    releaseDate: '28/10/2026',
-    description: 'Cuộc so tài nảy lửa giữa những đội bóng phong trào nhằm bảo vệ sân tập cộng đồng của khu phố nghèo.',
-    director: 'Lê Thanh Sơn',
-    cast: 'B Trần, Avin Lu, Hoàng Yến Chibi',
-    gradient: 'from-orange-950 via-amber-950 to-neutral-950',
-  },
-  {
-    id: 5,
-    title: 'Bản Giao Hưởng Địa Cầu',
-    genre: 'Khoa học, Giả tưởng',
-    duration: '145 phút',
-    ageLimit: 'T13',
-    ageColor: 'bg-rose-600',
-    rating: '9.5',
-    releaseDate: '30/10/2026',
-    description: 'Khi Trái Đất đứng trước bờ vực suy thoái khí quyển, các nhà khoa học mở ra cánh cổng không gian tìm kiếm nguồn sống mới.',
-    director: 'Christopher Nolan (Phụ đề)',
-    cast: 'Matthew McConaughey, Anne Hathaway',
-    gradient: 'from-cyan-950 via-slate-900 to-neutral-950',
-  },
-];
+const getAgeColor = (ageLimit) => {
+  switch (ageLimit) {
+    case 'P': return 'bg-emerald-600';
+    case 'T13': return 'bg-rose-600';
+    case 'T16': return 'bg-amber-600';
+    case 'T18': return 'bg-red-700';
+    default: return 'bg-zinc-700';
+  }
+};
 
-// Dữ liệu phim sắp chiếu
-const COMING_SOON_MOVIES = [
-  {
-    id: 6,
-    title: 'Tiếng Gọi Từ Rừng Sâu',
-    genre: 'Phiêu lưu, Kịch tính',
-    duration: '115 phút',
-    ageLimit: 'T13',
-    ageColor: 'bg-rose-600',
-    rating: 'Chờ đón',
-    releaseDate: '15/11/2026',
-    description: 'Đoàn thám hiểm lạc vào cánh rừng nhiệt đới không có trên bản đồ và phát hiện bí mật sinh học kỳ vĩ.',
-    director: 'Charlie Nguyễn',
-    cast: 'Johnny Trí Nguyễn, Suboi, Dustin Nguyễn',
-    gradient: 'from-emerald-950 via-teal-950 to-neutral-950',
-  },
-  {
-    id: 7,
-    title: 'Mùa Hè Cuối Cùng',
-    genre: 'Học đường, Thanh xuân',
-    duration: '98 phút',
-    ageLimit: 'P',
-    ageColor: 'bg-emerald-600',
-    rating: 'Chờ đón',
-    releaseDate: '22/11/2026',
-    description: 'Câu chuyện tình bạn trong trẻo và những ước mơ hoài bão trước ngưỡng cửa rời ghế nhà trường.',
-    director: 'Vũ Ngọc Phượng',
-    cast: 'Jun Phạm, Khả Ngân, Hoàng Hà',
-    gradient: 'from-sky-950 via-indigo-950 to-neutral-950',
-  },
-  {
-    id: 8,
-    title: 'Chiến Binh Ánh Sáng',
-    genre: 'Hành động, Viễn tưởng',
-    duration: '135 phút',
-    ageLimit: 'T16',
-    ageColor: 'bg-amber-600',
-    rating: 'Chờ đón',
-    releaseDate: '01/12/2026',
-    description: 'Cuộc chiến bảo vệ hành tinh trước các thực thể bóng tối đến từ chiều không gian bí ẩn.',
-    director: 'Denis Villeneuve',
-    cast: 'Timothée Chalamet, Zendaya',
-    gradient: 'from-purple-950 via-fuchsia-950 to-neutral-950',
-  },
-  {
-    id: 9,
-    title: 'Mật Mã Cung Đình',
-    genre: 'Lịch sử, Hành động',
-    duration: '125 phút',
-    ageLimit: 'T18',
-    ageColor: 'bg-red-700',
-    rating: 'Chờ đón',
-    releaseDate: '10/12/2026',
-    description: 'Bí mật đằng sau những bản đồ kho báu cổ xưa và cuộc truy đuổi sinh tử giữa các phe phái triều đình.',
-    director: 'Ngô Thanh Vân',
-    cast: 'Ngô Thanh Vân, Hứa Vĩ Văn, Song Luân',
-    gradient: 'from-red-950 via-stone-900 to-neutral-950',
-  },
-];
+const formatDate = (dateStr) => {
+  if (!dateStr) return 'Đang cập nhật';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch {
+    return dateStr;
+  }
+};
 
 const MoviePage = () => {
   const navigate = useNavigate();
   // Tab hiện tại: 'NOW_SHOWING' hoặc 'COMING_SOON'
   const [activeTab, setActiveTab] = useState('NOW_SHOWING');
+  const [movies, setMovies] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   // Modal xem chi tiết phim
   const [selectedMovie, setSelectedMovie] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const displayMovies = activeTab === 'NOW_SHOWING' ? NOW_SHOWING_MOVIES : COMING_SOON_MOVIES;
+  // Tải danh sách phim thật từ database theo tab
+  useEffect(() => {
+    let isMounted = true;
+    const fetchMovies = async () => {
+      try {
+        setLoading(true);
+        const res = await movieApi.getMovies({ status: activeTab, size: 50 });
+        if (isMounted) {
+          setMovies(res.data?.content || []);
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải danh sách phim:', err);
+        if (isMounted) {
+          setMovies([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchMovies();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab]);
+
+  // Mở modal xem chi tiết phim (gọi API getMovieById)
+  const handleOpenDetail = async (m) => {
+    try {
+      setLoadingDetail(true);
+      setSelectedMovie(m);
+      const res = await movieApi.getMovieById(m.movieId);
+      setSelectedMovie(res.data);
+    } catch (err) {
+      console.error('Lỗi khi tải chi tiết phim:', err);
+      // Giữ thông tin cơ bản nếu API chi tiết lỗi
+      setSelectedMovie(m);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col selection:bg-red-600 selection:text-white pb-32">
@@ -166,7 +104,7 @@ const MoviePage = () => {
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-8">
         
-        {/* Section: Thanh Tab chọn Phim Đang Chiếu / Phim Sắp Chiếu (Khớp UI/movie.png) */}
+        {/* Section: Thanh Tab chọn Phim Đang Chiếu / Phim Sắp Chiếu */}
         <div className="border-b border-zinc-800/80">
           <div className="flex items-center space-x-6 sm:space-x-8">
             
@@ -181,7 +119,6 @@ const MoviePage = () => {
               }`}
             >
               <span>PHIM ĐANG CHIẾU</span>
-              {/* Gạch chân đỏ khi active (theo UI/movie.png) */}
               {activeTab === 'NOW_SHOWING' && (
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#e50914] rounded-full animate-in fade-in zoom-in-95 duration-200"></div>
               )}
@@ -198,7 +135,6 @@ const MoviePage = () => {
               }`}
             >
               <span>PHIM SẮP CHIẾU</span>
-              {/* Gạch chân đỏ khi active */}
               {activeTab === 'COMING_SOON' && (
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#e50914] rounded-full animate-in fade-in zoom-in-95 duration-200"></div>
               )}
@@ -209,93 +145,117 @@ const MoviePage = () => {
 
         {/* Section: Lưới hiển thị danh sách phim */}
         <section aria-label="Danh sách phim">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
-            {displayMovies.map((movie) => (
-              <div
-                key={movie.id}
-                className="group relative bg-[#1c1c1f] rounded-2xl overflow-hidden border border-zinc-800/90 hover:border-zinc-700/80 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl flex flex-col"
-              >
-                {/* Poster Graphic Artwork */}
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-zinc-400">
+              <Loader2 className="w-8 h-8 animate-spin text-[#e50914] mb-3" />
+              <p className="text-sm font-medium">Đang tải danh sách phim từ rạp...</p>
+            </div>
+          ) : movies.length === 0 ? (
+            <div className="bg-[#1c1c1f]/80 border border-zinc-800/90 rounded-2xl p-12 text-center text-zinc-400 space-y-2">
+              <Film className="w-10 h-10 text-zinc-600 mx-auto mb-2" />
+              <h3 className="text-base font-bold text-white">Chưa có phim trong mục này</h3>
+              <p className="text-xs text-zinc-500">Vui lòng quay lại sau để cập nhật lịch phim mới nhất nhé!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
+              {movies.map((movie) => (
                 <div
-                  className={`relative aspect-[3/4] w-full bg-gradient-to-br ${movie.gradient} p-4 flex flex-col justify-between overflow-hidden cursor-pointer`}
-                  onClick={() => setSelectedMovie(movie)}
+                  key={movie.movieId}
+                  className="group relative bg-[#1c1c1f] rounded-2xl overflow-hidden border border-zinc-800/90 hover:border-zinc-700/80 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl flex flex-col"
                 >
-                  {/* Background Cinema Elements */}
-                  <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-white/5 blur-xl pointer-events-none"></div>
+                  {/* Poster Graphic Artwork */}
+                  <div
+                    className="relative aspect-[3/4] w-full bg-gradient-to-br from-zinc-800 to-zinc-950 p-4 flex flex-col justify-between overflow-hidden cursor-pointer"
+                    onClick={() => handleOpenDetail(movie)}
+                  >
+                    {movie.posterUrl ? (
+                      <img
+                        src={movie.posterUrl}
+                        alt={movie.title}
+                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="z-10 my-auto text-center py-4">
+                        <Film className="w-10 h-10 mx-auto text-white/20 mb-2 group-hover:scale-110 group-hover:text-white/50 transition-all duration-300" />
+                        <p className="text-white font-black text-sm sm:text-base leading-tight drop-shadow-md group-hover:text-[#e50914] transition-colors">
+                          {movie.title}
+                        </p>
+                      </div>
+                    )}
 
-                  {/* Top Badges */}
-                  <div className="flex items-center justify-between z-10">
-                    <span
-                      className={`text-white font-black text-[10px] sm:text-xs px-2 py-0.5 rounded-md shadow ${movie.ageColor}`}
-                    >
-                      {movie.ageLimit}
-                    </span>
-                    <span className="bg-black/60 backdrop-blur-md text-white font-bold text-[10px] sm:text-xs px-2 py-0.5 rounded-md border border-white/10">
-                      ★ {movie.rating}
-                    </span>
+                    {/* Top Badges */}
+                    <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-10 pointer-events-none">
+                      <span
+                        className={`text-white font-black text-[10px] sm:text-xs px-2 py-0.5 rounded-md shadow ${getAgeColor(movie.ageLimit)}`}
+                      >
+                        {movie.ageLimit || 'P'}
+                      </span>
+                      <span className="bg-black/60 backdrop-blur-md text-white font-bold text-[10px] sm:text-xs px-2 py-0.5 rounded-md border border-white/10">
+                        {activeTab === 'NOW_SHOWING' ? 'Đang chiếu' : 'Sắp chiếu'}
+                      </span>
+                    </div>
+
+                    {/* Bottom Duration info */}
+                    <div className="absolute bottom-2.5 left-2.5 right-2.5 z-10 flex items-center justify-between text-[11px] text-zinc-300 bg-black/60 backdrop-blur-sm px-2.5 py-1 rounded-lg">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-zinc-400" />
+                        <span>{movie.duration ? `${movie.duration}p` : '120p'}</span>
+                      </span>
+                      <span className="text-zinc-300 font-medium truncate max-w-[80px]">
+                        {formatDate(movie.releaseDate)}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Center Clapper Icon */}
-                  <div className="z-10 my-auto text-center py-4">
-                    <Film className="w-10 h-10 mx-auto text-white/20 mb-2 group-hover:scale-110 group-hover:text-white/50 transition-all duration-300" />
-                    <p className="text-white font-black text-sm sm:text-base leading-tight drop-shadow-md group-hover:text-[#e50914] transition-colors">
-                      {movie.title}
-                    </p>
-                  </div>
+                  {/* Movie Meta Info & Action Button */}
+                  <div className="p-3 sm:p-4 flex flex-col flex-1 justify-between space-y-3">
+                    <div>
+                      <h3
+                        onClick={() => handleOpenDetail(movie)}
+                        className="text-xs sm:text-sm font-bold text-white group-hover:text-[#e50914] transition-colors line-clamp-1 cursor-pointer"
+                        title={movie.title}
+                      >
+                        {movie.title}
+                      </h3>
+                      <p className="text-[11px] text-zinc-400 line-clamp-1 mt-0.5">
+                        {movie.genre || 'Phim chiếu rạp'}
+                      </p>
+                    </div>
 
-                  {/* Bottom Duration info */}
-                  <div className="z-10 flex items-center justify-between text-[11px] text-zinc-300 bg-black/50 backdrop-blur-sm px-2.5 py-1 rounded-lg">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-zinc-400" />
-                      <span>{movie.duration}</span>
-                    </span>
-                    <span className="text-zinc-300 font-medium">{movie.releaseDate}</span>
+                    <div className="flex items-center space-x-2 pt-1">
+                      {activeTab === 'NOW_SHOWING' ? (
+                        <button
+                          onClick={() => navigate(`/booking?movieId=${movie.movieId}`)}
+                          type="button"
+                          className="flex-1 bg-[#e50914] hover:bg-[#b80710] text-white text-xs font-bold py-2 px-3 rounded-xl transition duration-150 shadow-md shadow-red-950/20 flex items-center justify-center space-x-1 cursor-pointer"
+                        >
+                          <Ticket className="w-3.5 h-3.5" />
+                          <span>Đặt vé</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenDetail(movie)}
+                          type="button"
+                          className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-bold py-2 px-3 rounded-xl transition duration-150 flex items-center justify-center space-x-1 cursor-pointer"
+                        >
+                          <Info className="w-3.5 h-3.5" />
+                          <span>Chi tiết</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-
-                {/* Movie Meta Info & Action Button */}
-                <div className="p-3 sm:p-4 flex flex-col flex-1 justify-between space-y-3">
-                  <div>
-                    <h3
-                      onClick={() => setSelectedMovie(movie)}
-                      className="text-xs sm:text-sm font-bold text-white group-hover:text-[#e50914] transition-colors line-clamp-1 cursor-pointer"
-                    >
-                      {movie.title}
-                    </h3>
-                    <p className="text-[11px] text-zinc-400 line-clamp-1 mt-0.5">
-                      {movie.genre}
-                    </p>
-                  </div>
-
-                  {/* Nút hành động */}
-                  {activeTab === 'NOW_SHOWING' ? (
-                    <button
-                      onClick={() => navigate(`/booking?movieId=${movie.id}`)}
-                      type="button"
-                      className="w-full bg-[#e50914] hover:bg-[#b80710] text-white text-xs font-bold py-2 px-3 rounded-xl transition duration-150 shadow-md shadow-red-950/20 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-                    >
-                      <Ticket className="w-3.5 h-3.5" />
-                      <span>Đặt vé</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setSelectedMovie(movie)}
-                      type="button"
-                      className="w-full bg-zinc-800/90 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-semibold py-2 px-3 rounded-xl transition duration-150 border border-zinc-700/60 flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Info className="w-3.5 h-3.5 text-zinc-400" />
-                      <span>Chi tiết</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
 
       </main>
 
-      {/* Modal xem chi tiết phim */}
+      {/* MODAL CHI TIẾT PHIM KHI CLICK VÀO CARD */}
       {selectedMovie && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-lg bg-[#1c1c1f] border border-zinc-700 rounded-3xl p-6 shadow-2xl space-y-4">
@@ -312,16 +272,16 @@ const MoviePage = () => {
             {/* Header modal */}
             <div className="flex items-start space-x-3 pr-8">
               <span
-                className={`text-white font-black text-xs px-2.5 py-1 rounded-md flex-shrink-0 ${selectedMovie.ageColor}`}
+                className={`text-white font-black text-xs px-2.5 py-1 rounded-md flex-shrink-0 ${getAgeColor(selectedMovie.ageLimit)}`}
               >
-                {selectedMovie.ageLimit}
+                {selectedMovie.ageLimit || 'P'}
               </span>
               <div>
                 <h2 className="text-xl font-black text-white">
                   {selectedMovie.title}
                 </h2>
                 <p className="text-xs text-zinc-400 mt-0.5">
-                  {selectedMovie.genre} • {selectedMovie.duration}
+                  {selectedMovie.genre || 'Phim rạp'} • {selectedMovie.duration ? `${selectedMovie.duration} phút` : '120 phút'}
                 </p>
               </div>
             </div>
@@ -331,22 +291,22 @@ const MoviePage = () => {
               <div>
                 <span className="text-zinc-400 text-xs font-semibold block mb-0.5">Mô tả phim:</span>
                 <p className="leading-relaxed bg-zinc-900/60 p-3 rounded-xl border border-zinc-800">
-                  {selectedMovie.description}
+                  {selectedMovie.description || 'Chưa có thông tin tóm tắt phim.'}
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <span className="text-zinc-400 font-semibold block">Đạo diễn:</span>
-                  <span className="text-white font-medium">{selectedMovie.director}</span>
+                  <span className="text-white font-medium">{selectedMovie.director || 'Đang cập nhật'}</span>
                 </div>
                 <div>
                   <span className="text-zinc-400 font-semibold block">Khởi chiếu:</span>
-                  <span className="text-emerald-400 font-semibold">{selectedMovie.releaseDate}</span>
+                  <span className="text-emerald-400 font-semibold">{formatDate(selectedMovie.releaseDate)}</span>
                 </div>
                 <div className="col-span-2">
                   <span className="text-zinc-400 font-semibold block">Diễn viên chính:</span>
-                  <span className="text-white font-medium">{selectedMovie.cast}</span>
+                  <span className="text-white font-medium">{selectedMovie.cast || 'Đang cập nhật'}</span>
                 </div>
               </div>
             </div>
@@ -356,7 +316,7 @@ const MoviePage = () => {
               {activeTab === 'NOW_SHOWING' ? (
                 <button
                   onClick={() => {
-                    const id = selectedMovie.id;
+                    const id = selectedMovie.movieId;
                     setSelectedMovie(null);
                     navigate(`/booking?movieId=${id}`);
                   }}
@@ -391,4 +351,3 @@ const MoviePage = () => {
 };
 
 export default MoviePage;
-

@@ -6,12 +6,26 @@ import {
   Clock, 
   RotateCcw, 
   Calendar as CalendarIcon,
-  X
+  X,
+  Loader2,
+  Film
 } from 'lucide-react';
 
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import MessengerButton from '../components/MessengerButton';
+import showtimeApi from '../api/showtimeApi';
+
+// Màu badge độ tuổi
+const getAgeColor = (ageLimit) => {
+  switch (ageLimit) {
+    case 'P': return 'bg-emerald-600';
+    case 'T13': return 'bg-rose-600';
+    case 'T16': return 'bg-amber-600';
+    case 'T18': return 'bg-red-700';
+    default: return 'bg-zinc-700';
+  }
+};
 
 // Chuyển thứ trong tuần sang định dạng TH 2, TH 3... CN khớp với UI/showtime.png
 const getDayOfWeekText = (date) => {
@@ -52,90 +66,12 @@ const isSameDay = (d1, d2) => {
 // Định dạng ngày dạng 2 chữ số
 const padZero = (n) => String(n).padStart(2, '0');
 
-// Dữ liệu mẫu danh sách phim & suất chiếu
-const MOVIES_SHOWTIMES_DATA = [
-  {
-    movieId: 1,
-    title: 'Hành Trình Về Phía Biển',
-    ageLimit: 'P',
-    ageColor: 'bg-emerald-600',
-    genre: 'Tâm lý, Gia đình',
-    duration: '120 phút',
-    formats: [
-      {
-        room: 'Phòng 1 (2D Phụ đề)',
-        slots: ['09:30', '13:00', '16:30', '19:45', '22:30'],
-      },
-      {
-        room: 'Phòng 2 (2D Lồng tiếng)',
-        slots: ['11:15', '14:45', '18:15'],
-      },
-    ],
-  },
-  {
-    movieId: 2,
-    title: 'Thám Tử Phố Cổ',
-    ageLimit: 'T16',
-    ageColor: 'bg-amber-600',
-    genre: 'Hình sự, Bí ẩn',
-    duration: '105 phút',
-    formats: [
-      {
-        room: 'Phòng 4 (2D Phụ đề)',
-        slots: ['10:15', '14:00', '17:30', '21:00'],
-      },
-    ],
-  },
-  {
-    movieId: 3,
-    title: 'Đêm Cuối Ở Hội An',
-    ageLimit: 'T13',
-    ageColor: 'bg-rose-600',
-    genre: 'Lãng mạn, Hài',
-    duration: '130 phút',
-    formats: [
-      {
-        room: 'Phòng 1 (2D Phụ đề)',
-        slots: ['12:00', '15:15', '18:45', '22:00'],
-      },
-      {
-        room: 'Phòng 3 (VIP Room)',
-        slots: ['19:00', '21:45'],
-      },
-    ],
-  },
-  {
-    movieId: 4,
-    title: 'Bóng Rổ Đường Phố',
-    ageLimit: 'P',
-    ageColor: 'bg-emerald-600',
-    genre: 'Thể thao, Nhiệt huyết',
-    duration: '110 phút',
-    formats: [
-      {
-        room: 'Phòng 2 (2D Phụ đề)',
-        slots: ['09:45', '13:30', '16:15', '20:15'],
-      },
-    ],
-  },
-  {
-    movieId: 5,
-    title: 'Bản Giao Hưởng Địa Cầu',
-    ageLimit: 'T13',
-    ageColor: 'bg-rose-600',
-    genre: 'Khoa học, Giả tưởng',
-    duration: '145 phút',
-    formats: [
-      {
-        room: 'Phòng 4 (2D Phụ đề)',
-        slots: ['10:45', '14:30', '18:00', '21:30'],
-      },
-    ],
-  },
-];
-
 const ShowtimePage = () => {
   const navigate = useNavigate();
+
+  // State danh sách suất chiếu từ database
+  const [showtimes, setShowtimes] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Ngày hôm nay theo thời gian thực tế
   const today = useMemo(() => {
@@ -176,6 +112,78 @@ const ShowtimePage = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isCalendarOpen]);
+
+  // Tải danh sách suất chiếu từ database khi thay đổi selectedDate
+  useEffect(() => {
+    let isMounted = true;
+    const fetchShowtimes = async () => {
+      try {
+        setLoading(true);
+        const yyyy = selectedDate.getFullYear();
+        const mm = padZero(selectedDate.getMonth() + 1);
+        const dd = padZero(selectedDate.getDate());
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+        const res = await showtimeApi.getShowtimes({ date: dateStr });
+        if (isMounted) {
+          setShowtimes(res.data || []);
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải suất chiếu:', err);
+        if (isMounted) {
+          setShowtimes([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchShowtimes();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedDate]);
+
+  // Gom nhóm danh sách suất chiếu theo phim và phòng chiếu
+  const groupedMovies = useMemo(() => {
+    if (!showtimes || showtimes.length === 0) return [];
+    const movieMap = new Map();
+    showtimes.forEach((st) => {
+      if (!movieMap.has(st.movieId)) {
+        movieMap.set(st.movieId, {
+          movieId: st.movieId,
+          title: st.movieTitle,
+          ageLimit: st.ageLimit || 'P',
+          ageColor: getAgeColor(st.ageLimit),
+          genre: st.genre || 'Phim rạp',
+          duration: st.duration ? `${st.duration} phút` : '120 phút',
+          roomsMap: new Map(),
+        });
+      }
+      const movie = movieMap.get(st.movieId);
+      const roomKey = st.roomName || `Phòng ${st.roomId}`;
+      if (!movie.roomsMap.has(roomKey)) {
+        movie.roomsMap.set(roomKey, []);
+      }
+      const startTimeDate = new Date(st.startTime);
+      const timeStr = `${padZero(startTimeDate.getHours())}:${padZero(startTimeDate.getMinutes())}`;
+      movie.roomsMap.get(roomKey).push({
+        showId: st.showId,
+        time: timeStr,
+        startTime: st.startTime,
+        priceMultiplier: st.priceMultiplier,
+      });
+    });
+
+    return Array.from(movieMap.values()).map((m) => ({
+      ...m,
+      formats: Array.from(m.roomsMap.entries()).map(([room, slots]) => ({
+        room,
+        slots: slots.sort((a, b) => a.time.localeCompare(b.time)),
+      })),
+    }));
+  }, [showtimes]);
 
   // Tạo đúng 7 ngày của tuần đang xem (khung 7 ngày cố định khớp UI/showtime.png)
   const weekDays = useMemo(() => {
@@ -516,71 +524,95 @@ const ShowtimePage = () => {
             </h2>
 
             <span className="text-xs text-zinc-400">
-              {MOVIES_SHOWTIMES_DATA.length} phim đang có suất chiếu
+              {groupedMovies.length} phim đang có suất chiếu
             </span>
           </div>
 
           {/* Danh sách từng phim và các khung giờ chiếu */}
-          <div className="space-y-5">
-            {MOVIES_SHOWTIMES_DATA.map((movie) => (
-              <div
-                key={movie.movieId}
-                className="bg-[#1b1b1e] border border-zinc-800/90 rounded-2xl p-4 sm:p-6 shadow-xl hover:border-zinc-700/80 transition-all duration-200"
-              >
-                {/* Thông tin phim */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-zinc-800/70 gap-2">
-                  <div className="flex items-center space-x-3">
-                    <span
-                      className={`text-[10px] sm:text-xs font-black text-white px-2 py-0.5 rounded-md ${movie.ageColor}`}
-                    >
-                      {movie.ageLimit}
-                    </span>
-                    <h3 className="text-base sm:text-lg font-bold text-white hover:text-[#e50914] transition-colors cursor-pointer">
-                      {movie.title}
-                    </h3>
-                  </div>
-
-                  <div className="flex items-center space-x-4 text-xs text-zinc-400">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-zinc-400" />
-                      <span>{movie.duration}</span>
-                    </span>
-                    <span className="hidden sm:inline-block">•</span>
-                    <span>{movie.genre}</span>
-                  </div>
-                </div>
-
-                {/* Các định dạng & khung giờ chiếu */}
-                <div className="pt-4 space-y-4">
-                  {movie.formats.map((format, idx) => (
-                    <div key={idx} className="space-y-2">
-                      <p className="text-xs font-semibold text-zinc-400">
-                        {format.room}
-                      </p>
-
-                      <div className="flex flex-wrap gap-2.5">
-                        {format.slots.map((time, slotIdx) => (
-                          <button
-                            key={slotIdx}
-                            onClick={() => navigate(`/booking?movieId=${movie.movieId}&time=${time}&date=${selectedDate.toISOString().split('T')[0]}`)}
-                            type="button"
-                            className="group flex flex-col items-center justify-center px-4 py-2 rounded-xl bg-zinc-900/90 hover:bg-[#e50914] text-zinc-200 hover:text-white border border-zinc-800 hover:border-[#e50914] transition-all duration-150 cursor-pointer shadow-sm hover:scale-105"
-                          >
-                            <span className="text-sm sm:text-base font-black">
-                              {time}
-                            </span>
-                            <span className="text-[10px] text-zinc-400 group-hover:text-white/80 font-medium mt-0.5">
-                              Từ 60.000 đ
-                            </span>
-                          </button>
-                        ))}
-                      </div>
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 text-zinc-400 bg-[#1b1b1e]/60 rounded-2xl border border-zinc-800">
+              <Loader2 className="w-8 h-8 animate-spin text-[#e50914] mb-3" />
+              <p className="text-sm font-medium">Đang tải lịch chiếu từ rạp...</p>
+            </div>
+          ) : groupedMovies.length === 0 ? (
+            <div className="bg-[#1b1b1e] border border-zinc-800/90 rounded-2xl p-12 text-center text-zinc-400 space-y-3">
+              <Film className="w-10 h-10 text-zinc-600 mx-auto" />
+              <h3 className="text-base font-bold text-white">Chưa có suất chiếu cho ngày này</h3>
+              <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                Hiện tại chưa có lịch chiếu nào vào ngày {padZero(selectedDate.getDate())}/{padZero(selectedDate.getMonth() + 1)}/{selectedDate.getFullYear()}. Bạn hãy chọn các ngày khác nhé!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {groupedMovies.map((movie) => (
+                <div
+                  key={movie.movieId}
+                  className="bg-[#1b1b1e] border border-zinc-800/90 rounded-2xl p-4 sm:p-6 shadow-xl hover:border-zinc-700/80 transition-all duration-200"
+                >
+                  {/* Thông tin phim */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-zinc-800/70 gap-2">
+                    <div className="flex items-center space-x-3">
+                      <span
+                        className={`text-[10px] sm:text-xs font-black text-white px-2 py-0.5 rounded-md ${movie.ageColor}`}
+                      >
+                        {movie.ageLimit}
+                      </span>
+                      <h3 
+                        onClick={() => navigate(`/booking?movieId=${movie.movieId}`)}
+                        className="text-base sm:text-lg font-bold text-white hover:text-[#e50914] transition-colors cursor-pointer"
+                      >
+                        {movie.title}
+                      </h3>
                     </div>
-                  ))}
+
+                    <div className="flex items-center space-x-4 text-xs text-zinc-400">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                        <span>{movie.duration}</span>
+                      </span>
+                      <span className="hidden sm:inline-block">•</span>
+                      <span>{movie.genre}</span>
+                    </div>
+                  </div>
+
+                  {/* Các định dạng & khung giờ chiếu */}
+                  <div className="pt-4 space-y-4">
+                    {movie.formats.map((format, idx) => (
+                      <div key={idx} className="space-y-2">
+                        <p className="text-xs font-semibold text-zinc-400">
+                          {format.room}
+                        </p>
+
+                        <div className="flex flex-wrap gap-2.5">
+                          {format.slots.map((slot) => (
+                            <button
+                              key={slot.showId}
+                              onClick={() => {
+                                const yyyy = selectedDate.getFullYear();
+                                const mm = padZero(selectedDate.getMonth() + 1);
+                                const dd = padZero(selectedDate.getDate());
+                                const dateStr = `${yyyy}-${mm}-${dd}`;
+                                navigate(`/booking?movieId=${movie.movieId}&time=${slot.time}&date=${dateStr}&showId=${slot.showId}`);
+                              }}
+                              type="button"
+                              className="group flex flex-col items-center justify-center px-4 py-2 rounded-xl bg-zinc-900/90 hover:bg-[#e50914] text-zinc-200 hover:text-white border border-zinc-800 hover:border-[#e50914] transition-all duration-150 cursor-pointer shadow-sm hover:scale-105"
+                            >
+                              <span className="text-sm sm:text-base font-black">
+                                {slot.time}
+                              </span>
+                              <span className="text-[10px] text-zinc-400 group-hover:text-white/80 font-medium mt-0.5">
+                                Từ 60.000 đ
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
 
       </main>
