@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Mail, 
   Phone, 
@@ -48,9 +48,23 @@ const formatDateTime = (dateStr) => {
 const UserPage = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Tab con trong trang cá nhân: 'INFO' | 'TICKETS' | 'VOUCHERS'
-  const [activeTab, setActiveTab] = useState('INFO');
+  const [activeTab, setActiveTab] = useState(() => {
+    const tabParam = searchParams.get('tab')?.toUpperCase();
+    if (tabParam === 'TICKETS' || tabParam === 'VOUCHERS' || tabParam === 'INFO') {
+      return tabParam;
+    }
+    return 'INFO';
+  });
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')?.toUpperCase();
+    if (tabParam === 'TICKETS' || tabParam === 'VOUCHERS' || tabParam === 'INFO') {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   // Thông tin người dùng
   const [profile, setProfile] = useState(user);
