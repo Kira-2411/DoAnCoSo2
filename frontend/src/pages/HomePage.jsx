@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Home as HomeIcon, 
   Calendar, 
@@ -15,7 +15,14 @@ import {
   ArrowRight,
   Loader2,
   TicketX,
-  LogIn
+  LogIn,
+  Copy,
+  Check,
+  Mail,
+  MapPin,
+  QrCode,
+  Info,
+  X
 } from 'lucide-react';
 
 import Header from '../components/Header';
@@ -37,19 +44,39 @@ const QUICK_NAV_ITEMS = [
   { id: 'membership', label: 'THÀNH VIÊN', icon: Award, active: false, path: '/membership' },
 ];
 
-// Ánh xạ trạng thái đơn đặt vé từ backend sang giao diện
+// Ánh xạ trạng thái đơn đặt vé từ backend sang giao diện (PAID: Emerald, PENDING: Amber, CANCELLED: Red, EXPIRED: Neutral Gray)
 const getStatusBadge = (status) => {
   switch (status) {
     case 'PAID':
-      return { text: 'Đã thanh toán', color: 'bg-emerald-500 text-black' };
+      return {
+        text: 'Đã thanh toán',
+        color: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
+        dot: 'bg-emerald-400',
+      };
     case 'PENDING':
-      return { text: 'Chờ thanh toán', color: 'bg-amber-400 text-black' };
+      return {
+        text: 'Chờ thanh toán',
+        color: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+        dot: 'bg-amber-400',
+      };
     case 'CANCELLED':
-      return { text: 'Đã hủy', color: 'bg-zinc-600 text-white' };
+      return {
+        text: 'Đã hủy',
+        color: 'bg-red-500/15 text-red-400 border border-red-500/30',
+        dot: 'bg-red-400',
+      };
     case 'EXPIRED':
-      return { text: 'Hết hạn', color: 'bg-red-500/80 text-white' };
+      return {
+        text: 'Hết hạn',
+        color: 'bg-zinc-700/40 text-zinc-400 border border-zinc-600/40',
+        dot: 'bg-zinc-400',
+      };
     default:
-      return { text: status || 'Chưa rõ', color: 'bg-zinc-700 text-white' };
+      return {
+        text: status || 'Chưa rõ',
+        color: 'bg-zinc-700/40 text-zinc-300 border border-zinc-600/40',
+        dot: 'bg-zinc-400',
+      };
   }
 };
 
@@ -70,11 +97,81 @@ const formatDateTime = (dateStr) => {
   }
 };
 
+// Định dạng ngày khởi chiếu DD/MM/YYYY
+const formatDateOnly = (dateStr) => {
+  if (!dateStr) return 'Đang cập nhật';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch {
+    return dateStr;
+  }
+};
+
+// Màu nhãn giới hạn độ tuổi đồng bộ với trang Phim (BR-MOV-01)
+const getAgeColor = (ageLimit) => {
+  switch (ageLimit) {
+    case 'P':
+      return 'bg-emerald-600';
+    case 'T13':
+      return 'bg-rose-600';
+    case 'T16':
+      return 'bg-amber-600';
+    case 'T18':
+      return 'bg-red-700';
+    default:
+      return 'bg-zinc-700';
+  }
+};
+
 const HomePage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const ticketScrollRef = useRef(null);
-  const [scrollProgress, setScrollProgress] = useState(0);
+  const [copiedCode, setCopiedCode] = useState(null);
+
+  // State Modal xem Vé điện tử & Mã QR (BR-TIC-01)
+  const [selectedTicket, setSelectedTicket] = useState(null);
+
+  // State Modal xem chi tiết phim ở mục Phim Đang Hot
+  const [selectedMovieDetail, setSelectedMovieDetail] = useState(null);
+  const [loadingMovieDetail, setLoadingMovieDetail] = useState(false);
+
+  // Tự động cuộn mượt xuống mục #my-tickets khi điều hướng từ trang khác về /#my-tickets
+  useEffect(() => {
+    if (location.hash === '#my-tickets') {
+      const timer = setTimeout(() => {
+        const el = document.getElementById('my-tickets');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 120);
+      return () => clearTimeout(timer);
+    }
+  }, [location.hash]);
+
+  // Mở modal xem chi tiết phim (gọi GET /api/movies/{id})
+  const handleOpenMovieDetail = async (movie) => {
+    if (!movie) return;
+    try {
+      setLoadingMovieDetail(true);
+      setSelectedMovieDetail(movie);
+      const res = await movieApi.getMovieById(movie.movieId);
+      if (res?.data) {
+        setSelectedMovieDetail(res.data);
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải chi tiết phim:', err);
+      setSelectedMovieDetail(movie);
+    } finally {
+      setLoadingMovieDetail(false);
+    }
+  };
 
   // State lưu trữ phim thật từ backend (Phim đang hot / đang chiếu)
   const [hotMovies, setHotMovies] = useState([]);
@@ -150,27 +247,26 @@ const HomePage = () => {
     };
   }, [user]);
 
-  // Cuộn danh sách vé ngang
+  // Cuộn danh sách vé ngang mượt mà bằng scrollBy
   const handleScrollTickets = (direction) => {
     if (ticketScrollRef.current) {
-      const { scrollLeft, clientWidth } = ticketScrollRef.current;
-      const scrollAmount = clientWidth * 0.75;
-      ticketScrollRef.current.scrollTo({
-        left: direction === 'left' ? scrollLeft - scrollAmount : scrollLeft + scrollAmount,
+      const { clientWidth } = ticketScrollRef.current;
+      const scrollAmount = Math.max(320, clientWidth * 0.75);
+      ticketScrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
         behavior: 'smooth',
       });
     }
   };
 
-  const handleTicketScrollEvent = () => {
-    if (ticketScrollRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = ticketScrollRef.current;
-      const totalScrollable = scrollWidth - clientWidth;
-      if (totalScrollable > 0) {
-        const progress = (scrollLeft / totalScrollable) * 100;
-        setScrollProgress(Math.min(100, Math.max(0, progress)));
-      }
-    }
+  // Sao chép mã đặt vé vào bộ nhớ tạm
+  const handleCopyBookingCode = (code) => {
+    if (!code) return;
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => {
+      setCopiedCode((prev) => (prev === code ? null : prev));
+    }, 2000);
   };
 
   return (
@@ -240,24 +336,26 @@ const HomePage = () => {
               <span>VÉ CỦA TÔI</span>
             </h2>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               <button
                 onClick={() => handleScrollTickets('left')}
-                className="hidden sm:flex w-8 h-8 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white items-center justify-center transition border border-zinc-700/50 cursor-pointer"
+                type="button"
+                className="flex w-8 h-8 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white items-center justify-center transition border border-zinc-700/50 cursor-pointer active:scale-95"
                 aria-label="Cuộn trái"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={() => handleScrollTickets('right')}
-                className="hidden sm:flex w-8 h-8 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white items-center justify-center transition border border-zinc-700/50 cursor-pointer"
+                type="button"
+                className="flex w-8 h-8 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white items-center justify-center transition border border-zinc-700/50 cursor-pointer active:scale-95"
                 aria-label="Cuộn phải"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
               <Link
-                to="/my-tickets"
-                className="text-xs sm:text-sm text-zinc-400 hover:text-[#e50914] transition font-medium flex items-center gap-1 ml-2"
+                to="/membership?tab=tickets"
+                className="text-xs sm:text-sm text-zinc-400 hover:text-[#e50914] transition font-medium flex items-center gap-1 ml-1 sm:ml-2"
               >
                 <span>Xem tất cả</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -289,11 +387,50 @@ const HomePage = () => {
             </div>
           )}
 
-          {/* Trạng thái đang tải dữ liệu */}
+          {/* Trạng thái đang tải dữ liệu (Skeleton Loading) */}
           {user && loadingTickets && (
-            <div className="flex flex-col items-center justify-center py-12 gap-3 text-zinc-400 bg-[#1c1c1f]/40 border border-zinc-800/50 rounded-2xl">
-              <Loader2 className="w-7 h-7 animate-spin text-[#e50914]" />
-              <span className="text-xs sm:text-sm font-medium">Đang tải danh sách vé của bạn...</span>
+            <div
+              className="flex gap-4 sm:gap-5 overflow-x-auto no-scrollbar pb-2 pt-1"
+              aria-busy="true"
+              aria-label="Đang tải danh sách vé"
+            >
+              {[1, 2, 3].map((skeletonIdx) => (
+                <div
+                  key={skeletonIdx}
+                  className="min-w-[300px] sm:min-w-[340px] max-w-[360px] flex-shrink-0 bg-[#18181b] border border-zinc-800/90 rounded-2xl p-5 shadow-xl animate-pulse space-y-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-2 flex-1">
+                      <div className="h-5 bg-zinc-800 rounded-md w-3/4"></div>
+                      <div className="h-4 bg-zinc-800/70 rounded-md w-1/2"></div>
+                    </div>
+                    <div className="h-6 bg-zinc-800 rounded-full w-24"></div>
+                  </div>
+                  <div className="border-t border-dashed border-zinc-800 my-2"></div>
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between">
+                      <div className="h-3.5 bg-zinc-800/70 rounded w-20"></div>
+                      <div className="h-3.5 bg-zinc-800 rounded w-32"></div>
+                    </div>
+                    <div className="flex justify-between">
+                      <div className="h-3.5 bg-zinc-800/70 rounded w-20"></div>
+                      <div className="h-3.5 bg-zinc-800 rounded w-24"></div>
+                    </div>
+                    <div className="flex justify-between">
+                      <div className="h-3.5 bg-zinc-800/70 rounded w-16"></div>
+                      <div className="h-5 bg-zinc-800 rounded w-28"></div>
+                    </div>
+                    <div className="flex justify-between pt-1">
+                      <div className="h-4 bg-zinc-800/70 rounded w-24"></div>
+                      <div className="h-5 bg-zinc-800 rounded w-24"></div>
+                    </div>
+                  </div>
+                  <div className="pt-3 border-t border-zinc-800/60 flex justify-between">
+                    <div className="h-3 bg-zinc-800/60 rounded w-32"></div>
+                    <div className="h-3 bg-zinc-800/60 rounded w-24"></div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
@@ -327,97 +464,166 @@ const HomePage = () => {
           )}
 
           {/* Ticket Cards Carousel khi có dữ liệu thật */}
-          {user && !loadingTickets && tickets.length > 0 && (
-            <>
-              <div
-                ref={ticketScrollRef}
-                onScroll={handleTicketScrollEvent}
-                className="flex gap-4 sm:gap-5 overflow-x-auto custom-scrollbar pb-3 pt-1 select-none scroll-smooth"
-              >
-                {tickets.map((ticket) => {
-                  const statusBadge = getStatusBadge(ticket.status);
-                  const seatsText = Array.isArray(ticket.seats) ? ticket.seats.join(', ') : (ticket.seats || '—');
-                  const orderCode = ticket.bookingCode || `#${ticket.bookingId}`;
+          {user && !loadingTickets && !ticketError && tickets.length > 0 && (
+            <div
+              ref={ticketScrollRef}
+              className="flex gap-4 sm:gap-5 overflow-x-auto no-scrollbar pb-2 pt-1 select-none scroll-smooth"
+            >
+              {tickets.map((ticket) => {
+                const statusBadge = getStatusBadge(ticket.status);
+                const seatArray = Array.isArray(ticket.seats)
+                  ? ticket.seats
+                  : ticket.seats
+                  ? String(ticket.seats).split(',').map((s) => s.trim()).filter(Boolean)
+                  : [];
+                const rawCode = ticket.bookingCode || String(ticket.bookingId || '');
+                const displayCode = ticket.bookingCode || `#${ticket.bookingId}`;
+                const isCopied = copiedCode === rawCode;
 
-                  return (
-                    <div
-                      key={ticket.bookingId || ticket.bookingCode}
-                      className="min-w-[280px] sm:min-w-[320px] max-w-[340px] flex-shrink-0 bg-[#1c1c1f] border border-zinc-800/90 rounded-2xl p-4 sm:p-5 shadow-xl hover:border-zinc-700/80 transition-all duration-200 hover:-translate-y-0.5"
-                    >
-                      {/* Header card: Đơn # và trạng thái */}
-                      <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800/70">
-                        <span className="text-base sm:text-lg font-black text-[#e50914]">
-                          {orderCode.startsWith('#') ? `Đơn ${orderCode}` : `Đơn #${orderCode}`}
-                        </span>
-                        <span
-                          className={`text-[11px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full ${statusBadge.color}`}
+                return (
+                  <div
+                    key={ticket.bookingId || ticket.bookingCode}
+                    onClick={() => setSelectedTicket(ticket)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedTicket(ticket);
+                      }
+                    }}
+                    className="group relative min-w-[300px] sm:min-w-[340px] max-w-[360px] flex-shrink-0 bg-[#18181b] hover:bg-[#1d1d21] border border-zinc-800/90 hover:border-red-500/40 rounded-2xl p-4 sm:p-5 shadow-xl transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden cursor-pointer"
+                  >
+                    {/* 1. Header: Movie Title, Booking Code + Copy, Status Badge */}
+                    <div>
+                      <div className="flex items-start justify-between gap-2.5">
+                        <h3
+                          className="text-sm sm:text-base font-extrabold text-white group-hover:text-[#e50914] transition-colors leading-snug line-clamp-1 flex-1"
+                          title={ticket.movieTitle}
                         >
-                          {statusBadge.text}
+                          {ticket.movieTitle || '—'}
+                        </h3>
+
+                        <span
+                          className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full flex-shrink-0 ${statusBadge.color}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dot}`}></span>
+                          <span>{statusBadge.text}</span>
                         </span>
                       </div>
 
-                      {/* Details list */}
-                      <div className="space-y-2 text-xs sm:text-sm">
-                        <div className="flex justify-between items-start gap-2">
-                          <span className="text-zinc-400 flex-shrink-0">Email:</span>
-                          <span className="text-zinc-200 font-medium text-right truncate max-w-[190px]">
-                            {user?.email || '—'}
+                      {/* Booking Code in Monospace + Copy Button + QR Hint */}
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <div className="inline-flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800 px-2.5 py-1 rounded-lg">
+                          <span className="text-[11px] text-zinc-400">Mã vé:</span>
+                          <span className="font-mono text-xs sm:text-sm font-bold tracking-wider text-[#e50914]">
+                            {displayCode}
                           </span>
+                          {rawCode && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyBookingCode(rawCode);
+                              }}
+                              type="button"
+                              className="ml-1 text-zinc-400 hover:text-white transition cursor-pointer p-0.5 rounded"
+                              title={isCopied ? 'Đã sao chép mã vé' : 'Sao chép mã vé'}
+                              aria-label="Sao chép mã vé"
+                            >
+                              {isCopied ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          )}
                         </div>
 
-                        <div className="flex justify-between items-center gap-2">
-                          <span className="text-zinc-400 flex-shrink-0">Suất chiếu:</span>
-                          <span className="text-zinc-200 font-semibold text-right">
-                            {formatDateTime(ticket.showtime)}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center gap-2">
-                          <span className="text-zinc-400 flex-shrink-0">Tên phim:</span>
-                          <span className="text-white font-bold text-right truncate max-w-[190px]">
-                            {ticket.movieTitle || '—'}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center gap-2">
-                          <span className="text-zinc-400 flex-shrink-0">Số phòng:</span>
-                          <span className="text-zinc-200 font-medium text-right">
-                            {ticket.roomName || '—'}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center gap-2">
-                          <span className="text-zinc-400 flex-shrink-0">Ghế:</span>
-                          <span className="text-red-400 font-bold text-right">
-                            {seatsText}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center gap-2">
-                          <span className="text-zinc-400 flex-shrink-0">Tổng giá vé:</span>
-                          <span className="text-[#e50914] font-extrabold text-sm sm:text-base text-right">
-                            {ticket.totalPrice != null ? `${ticket.totalPrice.toLocaleString('vi-VN')} đ` : '—'}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center gap-2 pt-1 border-t border-zinc-800/50 text-[11px] text-zinc-400">
-                          <span className="flex-shrink-0">Thời gian đặt:</span>
-                          <span className="text-right">{formatDateTime(ticket.createdAt)}</span>
-                        </div>
+                        <span className="inline-flex items-center gap-1 text-[11px] text-zinc-400 group-hover:text-zinc-200 transition">
+                          <QrCode className="w-3.5 h-3.5 text-[#e50914]" />
+                          <span>Mã QR</span>
+                        </span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* Indicator bar */}
-              <div className="relative w-full h-1 bg-zinc-800/80 rounded-full overflow-hidden mt-1 max-w-xs mx-auto">
-                <div
-                  className="h-full bg-[#e50914] rounded-full transition-all duration-150"
-                  style={{ width: '40%', transform: `translateX(${scrollProgress * 1.5}%)` }}
-                />
-              </div>
-            </>
+                    {/* Ticket Perforation Divider (Notch + Dashed Line) */}
+                    <div className="relative my-3.5 flex items-center">
+                      <div className=" -ml-7 w-4 h-4 rounded-full bg-[#141414] border-r border-zinc-800/90 flex-shrink-0"></div>
+                      <div className="w-full border-t border-dashed border-zinc-800"></div>
+                      <div className="-mr-7 w-4 h-4 rounded-full bg-[#141414] border-l border-zinc-800/90 flex-shrink-0"></div>
+                    </div>
+
+                    {/* 2. Ticket Body: Showtime, Cinema Room, Seats, Total Price */}
+                    <div className="space-y-2.5 text-xs sm:text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-zinc-400 flex items-center gap-1.5 flex-shrink-0">
+                          <Calendar className="w-3.5 h-3.5 text-zinc-500" />
+                          <span>Suất chiếu:</span>
+                        </span>
+                        <span className="text-zinc-100 font-semibold text-right">
+                          {formatDateTime(ticket.showtime)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-zinc-400 flex items-center gap-1.5 flex-shrink-0">
+                          <MapPin className="w-3.5 h-3.5 text-zinc-500" />
+                          <span>Phòng chiếu:</span>
+                        </span>
+                        <span className="text-zinc-200 font-semibold text-right">
+                          {ticket.roomName || '—'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-zinc-400 flex items-center gap-1.5 flex-shrink-0 pt-0.5">
+                          <Ticket className="w-3.5 h-3.5 text-zinc-500" />
+                          <span>Ghế ngồi:</span>
+                        </span>
+                        <div className="flex flex-wrap justify-end gap-1 max-w-[200px]">
+                          {seatArray.length > 0 ? (
+                            seatArray.map((seat) => (
+                              <span
+                                key={seat}
+                                className="px-2 py-0.5 rounded-md bg-red-500/10 border border-red-500/25 text-red-400 font-bold text-[11px] leading-tight"
+                              >
+                                {seat}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-zinc-500 font-medium">—</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-zinc-800/60">
+                        <span className="text-zinc-400 font-medium flex-shrink-0">Tổng giá vé:</span>
+                        <span className="text-[#e50914] font-black text-sm sm:text-base text-right">
+                          {ticket.totalPrice != null
+                            ? `${Number(ticket.totalPrice).toLocaleString('vi-VN')} đ`
+                            : '—'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 3. Metadata Footer: User Email & Booking Time */}
+                    <div className="mt-3.5 pt-2.5 border-t border-zinc-800/70 flex items-center justify-between gap-2 text-[11px] text-zinc-400">
+                      <span
+                        className="flex items-center gap-1 truncate max-w-[165px]"
+                        title={ticket.email || user?.email || ''}
+                      >
+                        <Mail className="w-3 h-3 text-zinc-500 flex-shrink-0" />
+                        <span className="truncate">{ticket.email || user?.email || '—'}</span>
+                      </span>
+                      <span className="flex items-center gap-1 flex-shrink-0 text-right">
+                        <Clock className="w-3 h-3 text-zinc-500" />
+                        <span>{formatDateTime(ticket.createdAt)}</span>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </section>
 
@@ -440,9 +646,26 @@ const HomePage = () => {
 
           {/* Movie Cards Grid */}
           {loadingHotMovies ? (
-            <div className="flex flex-col items-center justify-center py-12 text-zinc-400 bg-[#1c1c1f]/40 border border-zinc-800/50 rounded-2xl">
-              <Loader2 className="w-7 h-7 animate-spin text-[#e50914] mb-2" />
-              <p className="text-xs sm:text-sm font-medium">Đang tải danh sách phim đang chiếu...</p>
+            <div
+              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-5"
+              aria-busy="true"
+              aria-label="Đang tải danh sách phim đang chiếu"
+            >
+              {[1, 2, 3, 4, 5].map((skeletonIdx) => (
+                <div
+                  key={skeletonIdx}
+                  className="bg-[#1c1c1f] rounded-2xl overflow-hidden border border-zinc-800/90 flex flex-col animate-pulse"
+                >
+                  <div className="aspect-[3/4] w-full bg-zinc-800/80" />
+                  <div className="p-3 sm:p-4 space-y-3">
+                    <div className="space-y-1.5">
+                      <div className="h-4 bg-zinc-800 rounded w-4/5" />
+                      <div className="h-3 bg-zinc-800/60 rounded w-1/2" />
+                    </div>
+                    <div className="h-8 bg-zinc-800 rounded-xl w-full" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : hotMovies.length === 0 ? (
             <div className="bg-[#1c1c1f]/80 border border-zinc-800/90 rounded-2xl p-8 text-center text-zinc-400 text-xs sm:text-sm">
@@ -456,8 +679,11 @@ const HomePage = () => {
                   key={movie.movieId}
                   className="group relative bg-[#1c1c1f] rounded-2xl overflow-hidden border border-zinc-800/90 hover:border-zinc-700/80 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl flex flex-col"
                 >
-                  {/* Poster Graphic Artwork */}
-                  <div className="relative aspect-[3/4] w-full bg-gradient-to-br from-zinc-800 to-zinc-950 flex flex-col justify-between overflow-hidden">
+                  {/* Poster Graphic Artwork (Click mở Modal chi tiết phim) */}
+                  <div
+                    onClick={() => handleOpenMovieDetail(movie)}
+                    className="relative aspect-[3/4] w-full bg-gradient-to-br from-zinc-800 to-zinc-950 flex flex-col justify-between overflow-hidden cursor-pointer"
+                  >
                     {movie.posterUrl ? (
                       <img
                         src={movie.posterUrl}
@@ -476,12 +702,14 @@ const HomePage = () => {
                       </div>
                     )}
 
-                    {/* Top Badges */}
+                    {/* Top Badges (Đồng bộ màu giới hạn tuổi P/T13/T16/T18) */}
                     <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-10 pointer-events-none">
-                      <span className="bg-black/70 backdrop-blur-md text-white font-extrabold text-[10px] sm:text-xs px-2 py-0.5 rounded-md border border-white/10">
+                      <span
+                        className={`text-white font-black text-[10px] sm:text-xs px-2 py-0.5 rounded-md shadow ${getAgeColor(movie.ageLimit)}`}
+                      >
                         {movie.ageLimit || 'P'}
                       </span>
-                      <span className="bg-[#e50914] text-white font-extrabold text-[10px] sm:text-xs px-2 py-0.5 rounded-md shadow-md">
+                      <span className="bg-black/60 backdrop-blur-md text-white font-bold text-[10px] sm:text-xs px-2 py-0.5 rounded-md border border-white/10">
                         Đang chiếu
                       </span>
                     </div>
@@ -502,7 +730,8 @@ const HomePage = () => {
                   <div className="p-3 sm:p-4 flex flex-col flex-1 justify-between space-y-3">
                     <div>
                       <h3
-                        className="text-xs sm:text-sm font-bold text-white group-hover:text-[#e50914] transition-colors line-clamp-1"
+                        onClick={() => handleOpenMovieDetail(movie)}
+                        className="text-xs sm:text-sm font-bold text-white group-hover:text-[#e50914] transition-colors line-clamp-1 cursor-pointer"
                         title={movie.title}
                       >
                         {movie.title}
@@ -512,14 +741,25 @@ const HomePage = () => {
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => navigate(`/booking?movieId=${movie.movieId}`)}
-                      type="button"
-                      className="w-full bg-[#e50914] hover:bg-[#b80710] text-white text-xs font-bold py-2 px-3 rounded-xl transition duration-150 shadow-md shadow-red-950/20 flex items-center justify-center gap-1 cursor-pointer"
-                    >
-                      <Ticket className="w-3.5 h-3.5" />
-                      <span>Đặt vé</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleOpenMovieDetail(movie)}
+                        type="button"
+                        className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-semibold py-2 px-2.5 rounded-xl transition cursor-pointer flex items-center justify-center"
+                        title="Xem chi tiết phim"
+                        aria-label="Xem chi tiết phim"
+                      >
+                        <Info className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => navigate(`/booking?movieId=${movie.movieId}`)}
+                        type="button"
+                        className="flex-1 bg-[#e50914] hover:bg-[#b80710] text-white text-xs font-bold py-2 px-3 rounded-xl transition duration-150 shadow-md shadow-red-950/20 flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <Ticket className="w-3.5 h-3.5" />
+                        <span>Đặt vé</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -528,6 +768,234 @@ const HomePage = () => {
         </section>
 
       </main>
+
+      {/* MODAL 1: VÉ ĐIỆN TỬ & MÃ QR (BR-TIC-01) */}
+      {selectedTicket && (
+        <div
+          onClick={() => setSelectedTicket(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md bg-[#18181b] border border-zinc-700/90 rounded-3xl p-6 shadow-2xl space-y-4 overflow-hidden"
+          >
+            {/* Nút đóng */}
+            <button
+              onClick={() => setSelectedTicket(null)}
+              type="button"
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center transition cursor-pointer"
+              aria-label="Đóng"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Header Vé điện tử */}
+            <div className="pr-8">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[#e50914] block">
+                VÉ ĐIỆN TỬ AKASHI CINEMA
+              </span>
+              <h3 className="text-lg sm:text-xl font-black text-white mt-0.5">
+                {selectedTicket.movieTitle || '—'}
+              </h3>
+              <div className="mt-2 flex items-center gap-2">
+                {(() => {
+                  const badge = getStatusBadge(selectedTicket.status);
+                  return (
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full ${badge.color}`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`}></span>
+                      <span>{badge.text}</span>
+                    </span>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Khung Mã QR (BR-TIC-01) */}
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex flex-col items-center text-center space-y-2.5">
+              <div className="bg-white p-3 rounded-2xl shadow-lg">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                    selectedTicket.bookingCode || String(selectedTicket.bookingId || 'AKASHI')
+                  )}`}
+                  alt={`QR ${selectedTicket.bookingCode}`}
+                  className="w-40 h-40 object-contain"
+                />
+              </div>
+
+              <div className="inline-flex items-center gap-2 bg-zinc-950 border border-zinc-800 px-3 py-1 rounded-xl">
+                <span className="text-xs text-zinc-400">Mã đặt vé:</span>
+                <span className="font-mono text-sm font-black text-[#e50914] tracking-wider">
+                  {selectedTicket.bookingCode || `#${selectedTicket.bookingId}`}
+                </span>
+                <button
+                  onClick={() =>
+                    handleCopyBookingCode(
+                      selectedTicket.bookingCode || String(selectedTicket.bookingId || '')
+                    )
+                  }
+                  type="button"
+                  className="text-zinc-400 hover:text-white transition cursor-pointer"
+                  title="Sao chép mã vé"
+                >
+                  {copiedCode ===
+                  (selectedTicket.bookingCode || String(selectedTicket.bookingId || '')) ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+
+              <p className="text-[11px] text-zinc-400">
+                {selectedTicket.status === 'PAID'
+                  ? 'Đưa mã QR này cho nhân viên tại quầy hoặc cửa soát vé để vào phòng chiếu.'
+                  : 'Mã đặt vé dùng để tra cứu hoặc đối soát tại quầy vé Akashi Cinema.'}
+              </p>
+            </div>
+
+            {/* Chi tiết vé */}
+            <div className="space-y-2 text-xs sm:text-sm bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-4">
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Suất chiếu:</span>
+                <span className="text-white font-bold">{formatDateTime(selectedTicket.showtime)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Phòng chiếu:</span>
+                <span className="text-zinc-200 font-semibold">{selectedTicket.roomName || '—'}</span>
+              </div>
+              <div className="flex justify-between items-start gap-2">
+                <span className="text-zinc-400">Ghế ngồi:</span>
+                <span className="text-red-400 font-bold text-right">
+                  {Array.isArray(selectedTicket.seats) && selectedTicket.seats.length > 0
+                    ? selectedTicket.seats.join(', ')
+                    : selectedTicket.seats || '—'}
+                </span>
+              </div>
+              <div className="flex justify-between pt-2 border-t border-zinc-800">
+                <span className="text-zinc-400 font-medium">Tổng thanh toán:</span>
+                <span className="text-[#e50914] font-black text-base">
+                  {selectedTicket.totalPrice != null
+                    ? `${Number(selectedTicket.totalPrice).toLocaleString('vi-VN')} đ`
+                    : '—'}
+                </span>
+              </div>
+              <div className="flex justify-between text-[11px] text-zinc-400 pt-1">
+                <span>Email: {selectedTicket.email || user?.email || '—'}</span>
+                <span>Đặt lúc: {formatDateTime(selectedTicket.createdAt)}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setSelectedTicket(null)}
+              type="button"
+              className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-2.5 rounded-xl transition cursor-pointer text-xs sm:text-sm"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: CHI TIẾT PHIM Ở MỤC PHIM ĐANG HOT */}
+      {selectedMovieDetail && (
+        <div
+          onClick={() => setSelectedMovieDetail(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-lg bg-[#1c1c1f] border border-zinc-700 rounded-3xl p-6 shadow-2xl space-y-4"
+          >
+            {/* Nút đóng modal */}
+            <button
+              onClick={() => setSelectedMovieDetail(null)}
+              type="button"
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center transition cursor-pointer"
+              aria-label="Đóng"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Header modal */}
+            <div className="flex items-start space-x-3 pr-8">
+              <span
+                className={`text-white font-black text-xs px-2.5 py-1 rounded-md flex-shrink-0 ${getAgeColor(
+                  selectedMovieDetail.ageLimit
+                )}`}
+              >
+                {selectedMovieDetail.ageLimit || 'P'}
+              </span>
+              <div>
+                <h2 className="text-xl font-black text-white">
+                  {selectedMovieDetail.title}
+                </h2>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  {selectedMovieDetail.genre || 'Phim rạp'} •{' '}
+                  {selectedMovieDetail.duration
+                    ? `${selectedMovieDetail.duration} phút`
+                    : '120 phút'}
+                </p>
+              </div>
+            </div>
+
+            {/* Nội dung mô tả */}
+            <div className="space-y-3 text-sm text-zinc-300">
+              <div>
+                <span className="text-zinc-400 text-xs font-semibold block mb-1">
+                  Mô tả nội dung phim:
+                </span>
+                {loadingMovieDetail && !selectedMovieDetail.description ? (
+                  <div className="h-20 bg-zinc-900/60 rounded-xl border border-zinc-800 animate-pulse p-3 flex items-center justify-center text-xs text-zinc-500">
+                    Đang tải chi tiết phim...
+                  </div>
+                ) : (
+                  <p className="leading-relaxed bg-zinc-900/60 p-3.5 rounded-xl border border-zinc-800 text-xs sm:text-sm">
+                    {selectedMovieDetail.description || 'Chưa có thông tin tóm tắt cho bộ phim này.'}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/70">
+                <div>
+                  <span className="text-zinc-400 font-semibold block">Khởi chiếu:</span>
+                  <span className="text-emerald-400 font-bold">
+                    {formatDateOnly(selectedMovieDetail.releaseDate)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-zinc-400 font-semibold block">Trạng thái:</span>
+                  <span className="text-white font-semibold">Đang chiếu tại rạp</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer modal: nút hành động */}
+            <div className="pt-2 flex space-x-3">
+              <button
+                onClick={() => setSelectedMovieDetail(null)}
+                type="button"
+                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold py-2.5 px-5 rounded-xl transition cursor-pointer text-xs sm:text-sm"
+              >
+                Đóng
+              </button>
+              <button
+                onClick={() => {
+                  const id = selectedMovieDetail.movieId;
+                  setSelectedMovieDetail(null);
+                  navigate(`/booking?movieId=${id}`);
+                }}
+                type="button"
+                className="flex-1 bg-[#e50914] hover:bg-[#b80710] text-white font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer shadow-lg shadow-red-950/40 text-xs sm:text-sm"
+              >
+                <Ticket className="w-4 h-4" />
+                <span>Đặt vé xem phim này</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 6. Messenger Floating Action Button */}
       <MessengerButton />
