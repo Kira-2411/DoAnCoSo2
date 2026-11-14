@@ -27,7 +27,7 @@ jobs:
 
       - name: Cài đặt dependencies
         working-directory: frontend
-        run: npm ci || npm install
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
       - name: Kiểm tra Build Frontend
         working-directory: frontend
