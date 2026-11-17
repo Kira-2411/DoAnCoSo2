@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/Header';
-import BottomNav from '../../components/BottomNav';
 import MessengerButton from '../../components/MessengerButton';
 import BookingStepper from '../../components/booking/BookingStepper';
 import { useBooking } from '../../contexts/BookingContext';
@@ -183,9 +182,6 @@ const BookingFoodPage = () => {
 
       {/* 3. Floating Messenger Button */}
       <MessengerButton />
-
-      {/* 4. Bottom Navigation Bar */}
-      <BottomNav activeId="booking" />
     </div>
   );
 };

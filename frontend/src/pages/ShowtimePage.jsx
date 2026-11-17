@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 
 import Header from '../components/Header';
-import BottomNav from '../components/BottomNav';
 import MessengerButton from '../components/MessengerButton';
 import showtimeApi from '../api/showtimeApi';
 
@@ -619,9 +618,6 @@ const ShowtimePage = () => {
 
       {/* 2. Messenger Floating Action Button */}
       <MessengerButton />
-
-      {/* 3. Bottom Navigation Bar dạng nổi viên thuốc (Active vào mục "Lịch chiếu") */}
-      <BottomNav activeId="showtimes" />
     </div>
   );
 };

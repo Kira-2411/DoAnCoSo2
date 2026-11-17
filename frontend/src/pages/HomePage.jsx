@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 
 import Header from '../components/Header';
-import BottomNav from '../components/BottomNav';
 import MessengerButton from '../components/MessengerButton';
 import heroBannerImg from '../assets/images/AnhBiaAkashiCinema.png';
 import { useAuth } from '../contexts/AuthContext';
@@ -999,9 +998,6 @@ const HomePage = () => {
 
       {/* 6. Messenger Floating Action Button */}
       <MessengerButton />
-
-      {/* 7. Bottom Navigation Bar dạng nổi viên thuốc (Pill style theo ảnh nav.jpg) */}
-      <BottomNav activeId="home" />
     </div>
   );
 };

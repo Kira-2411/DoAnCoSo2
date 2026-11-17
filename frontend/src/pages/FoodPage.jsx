@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 
 import Header from '../components/Header';
-import BottomNav from '../components/BottomNav';
 import MessengerButton from '../components/MessengerButton';
 import foodApi from '../api/foodApi';
 import { useBooking } from '../contexts/BookingContext';
@@ -208,7 +207,7 @@ const FoodPage = () => {
       <Header />
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6 min-h-[65vh]">
         
         {/* Section 1: Thanh Tab phân loại (TẤT CẢ | COMBO | BẮP RANG | THỨC UỐNG) */}
         <div className="border-b border-zinc-800/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -600,9 +599,6 @@ const FoodPage = () => {
 
       {/* 2. Messenger Floating Action Button */}
       <MessengerButton />
-
-      {/* 3. Bottom Navigation Bar dạng nổi viên thuốc (Active vào mục "Đồ ăn") */}
-      <BottomNav activeId="food" />
     </div>
   );
 };
