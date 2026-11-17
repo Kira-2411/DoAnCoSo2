@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 
 import Header from '../components/Header';
-import BottomNav from '../components/BottomNav';
 import MessengerButton from '../components/MessengerButton';
 import { useAuth } from '../contexts/AuthContext';
 import userApi from '../api/userApi';
@@ -587,9 +586,6 @@ const UserPage = () => {
 
       {/* 2. Messenger Floating Action Button */}
       <MessengerButton />
-
-      {/* 3. Bottom Navigation Bar dạng nổi viên thuốc (Active vào mục "Thành Viên" khớp UI/user.png) */}
-      <BottomNav activeId="membership" />
     </div>
   );
 };

@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 
 import Header from '../components/Header';
-import BottomNav from '../components/BottomNav';
 import MessengerButton from '../components/MessengerButton';
 import movieApi from '../api/movieApi';
 
@@ -102,7 +101,7 @@ const MoviePage = () => {
       <Header />
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-8 min-h-[65vh]">
         
         {/* Section: Thanh Tab chọn Phim Đang Chiếu / Phim Sắp Chiếu */}
         <div className="border-b border-zinc-800/80">
@@ -343,9 +342,6 @@ const MoviePage = () => {
 
       {/* 2. Messenger Floating Action Button */}
       <MessengerButton />
-
-      {/* 3. Bottom Navigation Bar dạng nổi viên thuốc (Active vào mục "Phim") */}
-      <BottomNav activeId="movies" />
     </div>
   );
 };

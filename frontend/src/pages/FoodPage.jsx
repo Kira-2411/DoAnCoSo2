@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 
 import Header from '../components/Header';
-import BottomNav from '../components/BottomNav';
 import MessengerButton from '../components/MessengerButton';
 import foodApi from '../api/foodApi';
 
@@ -140,7 +139,7 @@ const FoodPage = () => {
       <Header />
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-8 min-h-[65vh]">
         
         {/* Section: Thanh Tab phân loại (Khớp chuẩn UI/food.png) */}
         <div className="border-b border-zinc-800/80">
@@ -340,9 +339,6 @@ const FoodPage = () => {
 
       {/* 2. Messenger Floating Action Button */}
       <MessengerButton />
-
-      {/* 3. Bottom Navigation Bar dạng nổi viên thuốc (Active vào mục "Đồ ăn") */}
-      <BottomNav activeId="food" />
     </div>
   );
 };

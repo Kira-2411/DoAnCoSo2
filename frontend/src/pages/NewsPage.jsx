@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 
 import Header from '../components/Header';
-import BottomNav from '../components/BottomNav';
 import MessengerButton from '../components/MessengerButton';
 import heroBannerImg from '../assets/images/AnhBiaAkashiCinema.png';
 import newsApi from '../api/newsApi';
@@ -405,9 +404,6 @@ const NewsPage = () => {
 
       {/* 2. Messenger Floating Action Button */}
       <MessengerButton />
-
-      {/* 3. Bottom Navigation Bar dạng nổi viên thuốc (Active vào mục "Tin tức & Ưu đãi") */}
-      <BottomNav activeId="news" />
     </div>
   );
 };
