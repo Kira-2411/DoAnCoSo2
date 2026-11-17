@@ -20,7 +20,8 @@ const BookingFoodPage = () => {
     selectedFoods, 
     updateFoodQuantity, 
     DEFAULT_FOODS,
-    foodTotal 
+    foodTotal,
+    foodTotalQuantity
   } = useBooking();
   const [activeTab, setActiveTab] = useState('ALL');
 
@@ -51,19 +52,30 @@ const BookingFoodPage = () => {
         <div className="flex items-center justify-between py-4 mb-6">
           <button
             onClick={handleBack}
-            className="inline-flex items-center gap-2 bg-zinc-800/80 hover:bg-zinc-700 active:scale-95 text-zinc-200 font-medium px-5 py-2.5 rounded-xl border border-zinc-700/60 transition"
+            className="inline-flex items-center gap-2 bg-zinc-800/80 hover:bg-zinc-700 active:scale-95 text-zinc-200 font-medium px-5 py-2.5 rounded-xl border border-zinc-700/60 transition cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Quay lại</span>
           </button>
 
-          <button
-            onClick={handleNext}
-            className="inline-flex items-center gap-2 bg-[#e50914] hover:bg-[#b80710] active:scale-95 text-white font-bold px-7 py-2.5 rounded-full shadow-[0_4px_20px_rgba(229,9,20,0.4)] transition-all duration-200"
-          >
-            <span>Tiếp theo</span>
-            <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-          </button>
+          <div className="flex items-center gap-3">
+            {foodTotalQuantity > 0 && (
+              <div className="hidden sm:flex items-center gap-2 text-xs bg-zinc-900/90 border border-zinc-800 px-3.5 py-2 rounded-full">
+                <span className="text-zinc-400">Đã chọn {foodTotalQuantity} món:</span>
+                <span className="font-black text-[#e50914]">
+                  {foodTotal.toLocaleString('vi-VN')} đ
+                </span>
+              </div>
+            )}
+
+            <button
+              onClick={handleNext}
+              className="inline-flex items-center gap-2 bg-[#e50914] hover:bg-[#b80710] active:scale-95 text-white font-bold px-7 py-2.5 rounded-full shadow-[0_4px_20px_rgba(229,9,20,0.4)] transition-all duration-200 cursor-pointer"
+            >
+              <span>Tiếp theo</span>
+              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          </div>
         </div>
 
         {/* Categories Tabs */}
