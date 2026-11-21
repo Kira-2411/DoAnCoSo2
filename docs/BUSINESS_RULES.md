@@ -102,7 +102,7 @@ Vai trò lưu ở `[users.role]`. Người chưa đăng nhập gọi là **Khác
 
 ### 4.1. Phim (MUST)
 
-- **BR-MOV-01:** `[movies.duration]` > 0 (phút). `[age_limit]` thuộc `P, T13, T16, T18`. Trạng thái `[movie_status]`: `COMING_SOON`, `NOW_SHOWING`, `ENDED`, do Admin đặt thủ công.
+- **BR-MOV-01:** `[movies.duration]` > 0 (phút). `[age_limit]` thuộc `P, T13, T16, T18`. Trạng thái `[movie_status]`: `COMING_SOON`, `NOW_SHOWING`, `ENDED`. Mỗi phim có thời lượng bán vé là 7 ngày kể từ ngày khởi chiếu (hoặc từ lúc tạo phim). Hệ thống tự động chuyển đổi trạng thái theo thời gian thực: phim có ngày khởi chiếu trong tương lai (`releaseDate > today`) là `COMING_SOON`; đến ngày khởi chiếu và trong vòng 7 ngày là `NOW_SHOWING`; quá 7 ngày tự động chuyển thành `ENDED`. Khi Admin thêm/sửa phim, nếu chọn ngày khởi chiếu từ ngày mai trở đi thì bắt buộc phải để trạng thái `COMING_SOON`, nếu chọn ngày đã quá 7 ngày thì bắt buộc là `ENDED`, nếu đã đến ngày chiếu không được để `COMING_SOON`, sai sẽ bị từ chối với mã lỗi `400 VALIDATION_ERROR`.
 - **BR-MOV-02:** Trang chủ chỉ hiển thị phim `[is_active] = 1`, chia mục theo `[movie_status]`. Phim `ENDED` không hiện ở danh sách chính và không tạo thêm suất chiếu mới.
 - **BR-MOV-03:** Không xóa cứng phim. Ẩn phim bằng `[is_active] = 0`, lịch sử suất chiếu và đơn đặt vé được giữ nguyên.
 - **BR-MOV-04:** Phim T16 và T18: khi đặt vé online, khách phải tích xác nhận đủ tuổi. Hệ thống **không** xác minh tuổi (không lưu ngày sinh); nhân viên quầy kiểm tra giấy tờ khi cần.

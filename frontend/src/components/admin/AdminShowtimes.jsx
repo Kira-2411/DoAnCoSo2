@@ -32,6 +32,15 @@ const formatDateTime = (isoString) => {
   return `${timeStr} - ${dateStr}`;
 };
 
+// Loại bỏ các mã quy tắc nội bộ (BR-...) khỏi thông báo hiển thị cho người dùng
+const stripInternalCodes = (str) => {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .replace(/\s*\([A-Z]+-[A-Z]+-[^)]+\)/g, '')
+    .replace(/\s*theo quy tắc\s+[A-Z]+-[A-Z]+-\d+/gi, '')
+    .trim();
+};
+
 const formatTimeOnly = (isoString) => {
   if (!isoString) return '--:--';
   const d = new Date(isoString);
@@ -108,12 +117,24 @@ const AdminShowtimes = () => {
   useEffect(() => {
     const loadDependencies = async () => {
       try {
-        const [roomsData, moviesRes] = await Promise.all([
+        const [roomsRes, moviesRes] = await Promise.allSettled([
           adminApi.listRooms(),
-          adminApi.listMovies({ includeInactive: true, size: 200 }),
+          adminApi.listMovies({ includeInactive: true, size: 100 }),
         ]);
-        setRooms(roomsData);
-        setAllMovies(moviesRes.content || []);
+
+        if (roomsRes.status === 'fulfilled') {
+          const rData = roomsRes.value;
+          setRooms(Array.isArray(rData) ? rData : (rData?.content || []));
+        } else {
+          console.error('Lỗi tải danh mục phòng:', roomsRes.reason);
+        }
+
+        if (moviesRes.status === 'fulfilled') {
+          const mData = moviesRes.value;
+          setAllMovies(mData?.content || (Array.isArray(mData) ? mData : []));
+        } else {
+          console.error('Lỗi tải danh mục phim:', moviesRes.reason);
+        }
       } catch (err) {
         console.error('Lỗi tải danh mục phim/phòng:', err);
       }
@@ -215,7 +236,7 @@ const AdminShowtimes = () => {
   // Mở modal sửa
   const handleOpenEdit = (showtime) => {
     if (showtime.hasPaidBookings) {
-      showToast('error', 'Suất chiếu đã có đơn thanh toán, không thể thay đổi thông tin (BR-SHOW-05)');
+      showToast('error', 'Suất chiếu đã có đơn thanh toán, không thể thay đổi thông tin');
       return;
     }
     setEditingShowtime(showtime);
@@ -248,8 +269,7 @@ const AdminShowtimes = () => {
       if (isNaN(startMs)) {
         errors.startTime = 'Thời gian không hợp lệ';
       } else if (startMs < Date.now() && !editingShowtime) {
-        // BR-SHOW-03: không tạo suất trong quá khứ
-        errors.startTime = 'Không được tạo suất chiếu trong quá khứ (BR-SHOW-03)';
+        errors.startTime = 'Không được tạo suất chiếu trong quá khứ';
       }
     }
 
@@ -270,7 +290,7 @@ const AdminShowtimes = () => {
       const payload = {
         movieId: Number(formData.movieId),
         roomId: Number(formData.roomId),
-        startTime: new Date(formData.startTime).toISOString().slice(0, 16),
+        startTime: formData.startTime.length === 16 ? `${formData.startTime}:00` : formData.startTime,
         priceMultiplier: Number(formData.priceMultiplier),
       };
 
@@ -286,22 +306,26 @@ const AdminShowtimes = () => {
       fetchShowtimes();
     } catch (err) {
       console.error('Lỗi lưu suất chiếu:', err);
+      const cleanMessage = stripInternalCodes(err.message);
       if (err.code === 'SHOWTIME_OVERLAP') {
-        setFormErrors({ general: err.message || 'Phòng chiếu đã có suất chiếu khác trùng thời gian này (BR-SHOW-02)' });
-        showToast('error', err.message);
+        const msg = cleanMessage || 'Phòng chiếu đã có suất chiếu khác trùng thời gian này';
+        setFormErrors({ general: msg });
+        showToast('error', msg);
       } else if (err.code === 'HAS_PAID_BOOKINGS') {
-        setFormErrors({ general: err.message });
-        showToast('error', err.message);
+        const msg = cleanMessage || 'Suất chiếu đã có đơn thanh toán, không thể thay đổi thông tin';
+        setFormErrors({ general: msg });
+        showToast('error', msg);
       } else {
-        setFormErrors({ general: err.message || 'Có lỗi xảy ra khi lưu suất chiếu' });
-        showToast('error', err.message || 'Có lỗi xảy ra');
+        const msg = cleanMessage || 'Có lỗi xảy ra khi lưu suất chiếu';
+        setFormErrors({ general: msg });
+        showToast('error', msg);
       }
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Xác nhận hủy suất chiếu (BR-SHOW-06)
+  // Xác nhận hủy suất chiếu
   const handleConfirmCancel = async () => {
     if (!cancelTarget) return;
     setCanceling(true);
@@ -312,10 +336,11 @@ const AdminShowtimes = () => {
       fetchShowtimes();
     } catch (err) {
       console.error('Lỗi hủy suất chiếu:', err);
+      const cleanMessage = stripInternalCodes(err.message);
       if (err.code === 'HAS_PAID_BOOKINGS') {
-        showToast('error', 'Suất chiếu đã có đơn thanh toán, cần hủy các đơn đó trước (BR-SHOW-06)');
+        showToast('error', cleanMessage || 'Suất chiếu đã có đơn thanh toán, cần hủy các đơn đó trước');
       } else {
-        showToast('error', err.message || 'Không thể hủy suất chiếu');
+        showToast('error', cleanMessage || 'Không thể hủy suất chiếu');
       }
       setCancelTarget(null);
     } finally {
@@ -332,6 +357,30 @@ const AdminShowtimes = () => {
     setDebouncedKeyword('');
   };
 
+  // Sắp xếp suất chiếu theo thứ tự: 1. Đang mở -> 2. Đã qua -> 3. Đã hủy
+  // Trong từng nhóm: Đang mở (sắp chiếu gần nhất lên trước), Đã qua & Đã hủy (mới nhất lên trước)
+  const sortedShowtimes = [...showtimes].sort((a, b) => {
+    const isCanceledA = !a.isActive;
+    const isPastA = new Date(a.endTime).getTime() < Date.now();
+    const priorityA = isCanceledA ? 3 : (isPastA ? 2 : 1);
+
+    const isCanceledB = !b.isActive;
+    const isPastB = new Date(b.endTime).getTime() < Date.now();
+    const priorityB = isCanceledB ? 3 : (isPastB ? 2 : 1);
+
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+
+    const timeA = new Date(a.startTime).getTime();
+    const timeB = new Date(b.startTime).getTime();
+    if (priorityA === 1) {
+      return timeA - timeB;
+    } else {
+      return timeB - timeA;
+    }
+  });
+
   const selectedMovieObj = allMovies.find((m) => m.movieId === Number(formData.movieId));
 
   return (
@@ -344,7 +393,7 @@ const AdminShowtimes = () => {
             Quản lý Suất chiếu
           </h2>
           <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-            Lên lịch chiếu phim, quản lý giờ chiếu và hệ số giá vé (BR-SHOW-01 đến 06)
+            Lên lịch chiếu phim, quản lý giờ chiếu và hệ số giá vé
           </p>
         </div>
 
@@ -435,7 +484,7 @@ const AdminShowtimes = () => {
           <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-2" />
           <p className="text-sm">Đang tải danh sách suất chiếu...</p>
         </div>
-      ) : showtimes.length === 0 ? (
+      ) : sortedShowtimes.length === 0 ? (
         <div className="bg-zinc-900/40 border border-dashed border-zinc-800 rounded-xl p-12 text-center">
           <Calendar className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
           <h3 className="text-base font-medium text-zinc-300">Không tìm thấy suất chiếu nào</h3>
@@ -461,7 +510,7 @@ const AdminShowtimes = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/60">
-                {showtimes.map((item) => {
+                {sortedShowtimes.map((item) => {
                   const isCanceled = !item.isActive;
                   const isPast = new Date(item.endTime).getTime() < Date.now();
 
@@ -541,7 +590,7 @@ const AdminShowtimes = () => {
                                 disabled={item.hasPaidBookings || isPast}
                                 title={
                                   item.hasPaidBookings
-                                    ? 'Suất chiếu đã có đơn thanh toán, không thể sửa (BR-SHOW-05)'
+                                    ? 'Suất chiếu đã có đơn thanh toán, không thể sửa'
                                     : isPast
                                     ? 'Suất chiếu đã qua'
                                     : 'Sửa suất chiếu'
@@ -584,7 +633,7 @@ const AdminShowtimes = () => {
 
           {/* Giao diện Mobile: Dạng thẻ */}
           <div className="grid grid-cols-1 gap-3 md:hidden">
-            {showtimes.map((item) => {
+            {sortedShowtimes.map((item) => {
               const isCanceled = !item.isActive;
               const isPast = new Date(item.endTime).getTime() < Date.now();
 
@@ -684,7 +733,7 @@ const AdminShowtimes = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingShowtime ? 'Sửa suất chiếu' : 'Thêm suất chiếu mới'}
-        description="Điền thông tin phim, phòng chiếu và giờ chiếu. Giờ kết thúc sẽ tự động tính toán (BR-SHOW-01 đến 04)."
+        description="Điền thông tin phim, phòng chiếu và giờ chiếu. Giờ kết thúc sẽ tự động tính toán."
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -732,7 +781,7 @@ const AdminShowtimes = () => {
               <option value="">-- Chọn phòng chiếu --</option>
               {validRoomsForShowtime.map((r) => (
                 <option key={r.roomId} value={r.roomId}>
-                  {r.roomName} ({r.totalSeats} ghế)
+                  {r.roomName}{r.totalSeats ? ` (${r.totalSeats} ghế)` : ''}
                 </option>
               ))}
             </select>
@@ -743,7 +792,7 @@ const AdminShowtimes = () => {
             label="Giờ bắt đầu chiếu"
             required
             error={formErrors.startTime}
-            helperText="Không được chọn giờ trong quá khứ (BR-SHOW-03)"
+            helperText="Không được chọn giờ trong quá khứ"
           >
             <input
               type="datetime-local"
@@ -829,10 +878,10 @@ const AdminShowtimes = () => {
         }
         confirmText="Hủy suất chiếu"
         cancelText="Đóng"
-        danger
+        isDanger={true}
         loading={canceling}
         onConfirm={handleConfirmCancel}
-        onCancel={() => setCancelTarget(null)}
+        onClose={() => setCancelTarget(null)}
       />
     </div>
   );

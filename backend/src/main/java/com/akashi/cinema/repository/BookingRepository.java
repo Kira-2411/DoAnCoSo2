@@ -26,5 +26,19 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     Page<Booking> findByUserIdAndStatus(@Param("userId") Integer userId,
                                         @Param("status") BookingStatus status,
                                         Pageable pageable);
+
+    @Query("""
+            SELECT COUNT(b) FROM Booking b
+            WHERE b.showtime.showId = :showId
+              AND b.bookingStatus = com.akashi.cinema.enums.BookingStatus.PAID
+            """)
+    long countPaidBookingsByShowId(@Param("showId") Integer showId);
+
+    @Query("""
+            SELECT b FROM Booking b
+            WHERE b.showtime.showId = :showId
+              AND b.bookingStatus = com.akashi.cinema.enums.BookingStatus.PENDING
+            """)
+    java.util.List<Booking> findPendingBookingsByShowId(@Param("showId") Integer showId);
 }
 

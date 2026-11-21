@@ -22,6 +22,7 @@ public class MovieDetailResponse {
 
     private MovieStatus movieStatus;
     private String posterUrl;
+    private Boolean isActive;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
@@ -34,7 +35,7 @@ public class MovieDetailResponse {
 
     public MovieDetailResponse(Integer movieId, String title, String description, String genre, Integer duration,
                                AgeLimit ageLimit, LocalDate releaseDate, MovieStatus movieStatus, String posterUrl,
-                               LocalDateTime createdAt, LocalDateTime updatedAt) {
+                               Boolean isActive, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.movieId = movieId;
         this.title = title;
         this.description = description;
@@ -44,6 +45,7 @@ public class MovieDetailResponse {
         this.releaseDate = releaseDate;
         this.movieStatus = movieStatus;
         this.posterUrl = posterUrl;
+        this.isActive = isActive;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -66,6 +68,7 @@ public class MovieDetailResponse {
                 .releaseDate(movie.getReleaseDate())
                 .movieStatus(movie.getMovieStatus())
                 .posterUrl(movie.getPosterUrl())
+                .isActive(movie.getIsActive())
                 .createdAt(movie.getCreatedAt())
                 .updatedAt(movie.getUpdatedAt())
                 .build();
@@ -143,6 +146,14 @@ public class MovieDetailResponse {
         this.posterUrl = posterUrl;
     }
 
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean active) {
+        isActive = active;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -169,6 +180,7 @@ public class MovieDetailResponse {
         private LocalDate releaseDate;
         private MovieStatus movieStatus;
         private String posterUrl;
+        private Boolean isActive;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
 
@@ -217,6 +229,11 @@ public class MovieDetailResponse {
             return this;
         }
 
+        public Builder isActive(Boolean isActive) {
+            this.isActive = isActive;
+            return this;
+        }
+
         public Builder createdAt(LocalDateTime createdAt) {
             this.createdAt = createdAt;
             return this;
@@ -229,7 +246,7 @@ public class MovieDetailResponse {
 
         public MovieDetailResponse build() {
             return new MovieDetailResponse(movieId, title, description, genre, duration, ageLimit,
-                    releaseDate, movieStatus, posterUrl, createdAt, updatedAt);
+                    releaseDate, movieStatus, posterUrl, isActive, createdAt, updatedAt);
         }
     }
 }

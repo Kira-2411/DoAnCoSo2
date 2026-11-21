@@ -17,6 +17,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.akashi.cinema.entity.Booking;
+import com.akashi.cinema.entity.User;
+import com.akashi.cinema.enums.BookingChannel;
+import com.akashi.cinema.enums.BookingStatus;
+import com.akashi.cinema.repository.BookingRepository;
+import com.akashi.cinema.repository.SeatHoldRepository;
+import com.akashi.cinema.repository.UserRepository;
+import com.akashi.cinema.security.JwtTokenProvider;
+import org.springframework.http.MediaType;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,8 +35,10 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -44,6 +56,18 @@ class ShowtimeIntegrationTest {
     private MovieRepository movieRepository;
 
     @Autowired
+    private BookingRepository bookingRepository;
+
+    @Autowired
+    private SeatHoldRepository seatHoldRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+
+    @Autowired
     private EntityManager entityManager;
 
     @Autowired
@@ -53,20 +77,40 @@ class ShowtimeIntegrationTest {
     private LocalDate seedDay2;
     private LocalDate seedDay3;
 
+    private User adminUser;
+    private User customerUser;
+
     private final List<Integer> createdTestShowIds = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
+        // Dọn dẹp dữ liệu test cũ nếu có
+        jdbcTemplate.update("DELETE FROM seat_holds WHERE show_id > 9");
+        jdbcTemplate.update("DELETE FROM booking_seats WHERE booking_id IN (SELECT booking_id FROM bookings WHERE show_id > 9)");
+        jdbcTemplate.update("DELETE FROM booking_foods WHERE booking_id IN (SELECT booking_id FROM bookings WHERE show_id > 9)");
+        jdbcTemplate.update("DELETE FROM payments WHERE booking_id IN (SELECT booking_id FROM bookings WHERE show_id > 9)");
+        jdbcTemplate.update("DELETE FROM bookings WHERE show_id > 9");
+        jdbcTemplate.update("DELETE FROM showtimes WHERE show_id > 9");
+        jdbcTemplate.update("UPDATE showtimes SET is_active = true WHERE show_id <= 9");
+
         // Lấy ngày thực tế của suất chiếu số 1 từ V2__seed_dev_data.sql
         Showtime firstSeedShowtime = showtimeRepository.findById(1).orElseThrow();
         seedDay1 = firstSeedShowtime.getStartTime().toLocalDate();
         seedDay2 = seedDay1.plusDays(1);
         seedDay3 = seedDay1.plusDays(2);
+
+        adminUser = userRepository.findByEmail("admin@example.com").orElse(null);
+        customerUser = userRepository.findByEmail("customer@example.com").orElse(null);
     }
 
     @AfterEach
     void tearDown() {
         for (Integer showId : createdTestShowIds) {
+            jdbcTemplate.update("DELETE FROM seat_holds WHERE show_id = ?", showId);
+            jdbcTemplate.update("DELETE FROM booking_seats WHERE booking_id IN (SELECT booking_id FROM bookings WHERE show_id = ?)", showId);
+            jdbcTemplate.update("DELETE FROM booking_foods WHERE booking_id IN (SELECT booking_id FROM bookings WHERE show_id = ?)", showId);
+            jdbcTemplate.update("DELETE FROM payments WHERE booking_id IN (SELECT booking_id FROM bookings WHERE show_id = ?)", showId);
+            jdbcTemplate.update("DELETE FROM bookings WHERE show_id = ?", showId);
             jdbcTemplate.update("DELETE FROM showtimes WHERE show_id = ?", showId);
         }
         createdTestShowIds.clear();
@@ -304,6 +348,274 @@ class ShowtimeIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("9. POST /api/showtimes (ADMIN): tạo suất chiếu thành công, tự tính endTime = startTime + duration + 15m (BR-SHOW-01)")
+    void postShowtime_AdminValidInput_Returns201WithCalculatedEndTime() throws Exception {
+        String adminToken = jwtTokenProvider.generateToken(adminUser);
+        LocalDate futureDate = LocalDate.now().plusDays(20);
+        LocalDateTime startTime = futureDate.atTime(10, 0, 0);
+        String expectedStart = startTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
+        String expectedEnd = startTime.plusMinutes(135).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
+
+        // Movie 1 có duration = 120 phút. endTime mong đợi: 10:00 + 120m + 15m = 12:15:00
+        String requestJson = String.format("""
+                {
+                  "movieId": 1,
+                  "roomId": 1,
+                  "startTime": "%s",
+                  "priceMultiplier": 1.20
+                }
+                """, expectedStart);
+
+        MvcResult result = mockMvc.perform(post("/api/showtimes")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.showId").isNumber())
+                .andExpect(jsonPath("$.movieId").value(1))
+                .andExpect(jsonPath("$.roomId").value(1))
+                .andExpect(jsonPath("$.startTime").value(expectedStart))
+                .andExpect(jsonPath("$.endTime").value(expectedEnd))
+                .andExpect(jsonPath("$.priceMultiplier").value(1.20))
+                .andExpect(jsonPath("$.isActive").value(true))
+                .andReturn();
+
+        String resStr = result.getResponse().getContentAsString();
+        int createdId = Integer.parseInt(resStr.split("\"showId\":")[1].split(",")[0].trim());
+        createdTestShowIds.add(createdId);
+    }
+
+    @Test
+    @DisplayName("10. POST /api/showtimes (ADMIN): tạo suất chiếu trong quá khứ trả 400 VALIDATION_ERROR (BR-SHOW-03)")
+    void postShowtime_PastStartTime_Returns400() throws Exception {
+        String adminToken = jwtTokenProvider.generateToken(adminUser);
+        LocalDateTime pastTime = LocalDateTime.now().minusDays(1).withNano(0);
+        String pastStr = pastTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
+
+        String requestJson = String.format("""
+                {
+                  "movieId": 1,
+                  "roomId": 1,
+                  "startTime": "%s",
+                  "priceMultiplier": 1.00
+                }
+                """, pastStr);
+
+        mockMvc.perform(post("/api/showtimes")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("Không được tạo suất chiếu trong quá khứ"));
+    }
+
+    @Test
+    @DisplayName("11. POST /api/showtimes (ADMIN): trùng giờ chiếu trong cùng phòng trả 409 SHOWTIME_OVERLAP (BR-SHOW-02)")
+    void postShowtime_OverlapInSameRoom_Returns409() throws Exception {
+        String adminToken = jwtTokenProvider.generateToken(adminUser);
+        LocalDate futureDate = LocalDate.now().plusDays(25);
+        LocalDateTime startTime1 = futureDate.atTime(14, 0, 0);
+
+        // Suất 1: 14:00 - 16:15 trong Phòng 1
+        Showtime s1 = createTestShowtime(1, 1, startTime1, startTime1.plusMinutes(135), new BigDecimal("1.00"), true);
+
+        // Suất 2 cố tình tạo lúc 15:00 trong Phòng 1 (bị trùng khoảng 14:00 - 16:15)
+        LocalDateTime startTime2 = futureDate.atTime(15, 0, 0);
+        String start2Str = startTime2.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
+        String requestJson = String.format("""
+                {
+                  "movieId": 2,
+                  "roomId": 1,
+                  "startTime": "%s",
+                  "priceMultiplier": 1.00
+                }
+                """, start2Str);
+
+        mockMvc.perform(post("/api/showtimes")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SHOWTIME_OVERLAP"))
+                .andExpect(jsonPath("$.message").value("Phòng chiếu đã có suất chiếu khác trùng thời gian này"));
+    }
+
+    @Test
+    @DisplayName("12. POST /api/showtimes (ADMIN): phim đã ENDED trả 400 VALIDATION_ERROR (BR-SHOW-03)")
+    void postShowtime_EndedMovie_Returns400() throws Exception {
+        String adminToken = jwtTokenProvider.generateToken(adminUser);
+        LocalDate futureDate = LocalDate.now().plusDays(20);
+        LocalDateTime startTime = futureDate.atTime(10, 0, 0);
+        String startStr = startTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
+
+        // Movie 5 có movieStatus = ENDED
+        String requestJson = String.format("""
+                {
+                  "movieId": 5,
+                  "roomId": 1,
+                  "startTime": "%s",
+                  "priceMultiplier": 1.00
+                }
+                """, startStr);
+
+        mockMvc.perform(post("/api/showtimes")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("Phim đã kết thúc chiếu (ENDED), không thể tạo suất chiếu"));
+    }
+
+    @Test
+    @DisplayName("13. PUT /api/showtimes/{id} (ADMIN): sửa suất chiếu chưa có đơn PAID thành công")
+    void putShowtime_NoPaidBookings_UpdatesSuccessfully() throws Exception {
+        String adminToken = jwtTokenProvider.generateToken(adminUser);
+        LocalDate futureDate = LocalDate.now().plusDays(22);
+        LocalDateTime originalStart = futureDate.atTime(8, 0, 0);
+        Showtime showtime = createTestShowtime(1, 1, originalStart, originalStart.plusMinutes(135), new BigDecimal("1.00"), true);
+
+        // Sửa sang Phòng 2 và 09:30
+        LocalDateTime newStart = futureDate.atTime(9, 30, 0);
+        String newStartStr = newStart.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
+        String updateJson = String.format("""
+                {
+                  "movieId": 1,
+                  "roomId": 2,
+                  "startTime": "%s",
+                  "priceMultiplier": 1.50
+                }
+                """, newStartStr);
+
+        mockMvc.perform(put("/api/showtimes/" + showtime.getShowId())
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.showId").value(showtime.getShowId()))
+                .andExpect(jsonPath("$.roomId").value(2))
+                .andExpect(jsonPath("$.startTime").value(newStartStr))
+                .andExpect(jsonPath("$.priceMultiplier").value(1.50));
+    }
+
+    @Test
+    @DisplayName("14. PUT /api/showtimes/{id} (ADMIN): suất chiếu đã có đơn PAID chặn đổi phòng/giờ/phim trả 409 HAS_PAID_BOOKINGS (BR-SHOW-05)")
+    void putShowtime_WithPaidBooking_Throws409() throws Exception {
+        String adminToken = jwtTokenProvider.generateToken(adminUser);
+        LocalDate futureDate = LocalDate.now().plusDays(23);
+        LocalDateTime start = futureDate.atTime(10, 0, 0);
+        Showtime showtime = createTestShowtime(1, 1, start, start.plusMinutes(135), new BigDecimal("1.00"), true);
+
+        // Tạo 1 đơn PAID cho suất chiếu này (mã bookingCode tối đa 20 ký tự)
+        Booking paidBooking = Booking.builder()
+                .bookingCode("PAID-" + java.util.UUID.randomUUID().toString().substring(0, 8))
+                .user(customerUser)
+                .showtime(showtime)
+                .channel(BookingChannel.ONLINE)
+                .discountAmount(0L)
+                .totalPrice(60000L)
+                .bookingStatus(BookingStatus.PAID)
+                .bookingTime(LocalDateTime.now())
+                .build();
+        bookingRepository.save(paidBooking);
+
+        // Thử sửa đổi giờ bắt đầu
+        LocalDateTime newStart = futureDate.atTime(11, 0, 0);
+        String updateJson = String.format("""
+                {
+                  "movieId": 1,
+                  "roomId": 1,
+                  "startTime": "%s",
+                  "priceMultiplier": 1.00
+                }
+                """, newStart);
+
+        mockMvc.perform(put("/api/showtimes/" + showtime.getShowId())
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateJson))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("HAS_PAID_BOOKINGS"))
+                .andExpect(jsonPath("$.message").value("Suất chiếu đã có đơn thanh toán, không thể thay đổi thông tin"));
+    }
+
+    @Test
+    @DisplayName("15. DELETE /api/showtimes/{id} (ADMIN): hủy suất chiếu thành công và hủy các đơn PENDING (BR-SHOW-06)")
+    void deleteShowtime_NoPaidBookings_CancelsShowtimeAndPendingBookings() throws Exception {
+        String adminToken = jwtTokenProvider.generateToken(adminUser);
+        LocalDate futureDate = LocalDate.now().plusDays(24);
+        LocalDateTime start = futureDate.atTime(10, 0, 0);
+        Showtime showtime = createTestShowtime(1, 1, start, start.plusMinutes(135), new BigDecimal("1.00"), true);
+
+        // Tạo 1 đơn PENDING cho suất chiếu này
+        Booking pendingBooking = Booking.builder()
+                .bookingCode("PEND-" + java.util.UUID.randomUUID().toString().substring(0, 8))
+                .user(customerUser)
+                .showtime(showtime)
+                .channel(BookingChannel.ONLINE)
+                .discountAmount(0L)
+                .totalPrice(60000L)
+                .bookingStatus(BookingStatus.PENDING)
+                .bookingTime(LocalDateTime.now())
+                .build();
+        Booking savedPending = bookingRepository.save(pendingBooking);
+
+        mockMvc.perform(delete("/api/showtimes/" + showtime.getShowId())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNoContent());
+
+        // Kiểm tra suất chiếu đã chuyển isActive = false
+        Showtime dbShowtime = showtimeRepository.findById(showtime.getShowId()).orElseThrow();
+        assertThat(dbShowtime.getIsActive()).isFalse();
+
+        // Kiểm tra đơn PENDING đã chuyển CANCELLED
+        Booking dbBooking = bookingRepository.findById(savedPending.getBookingId()).orElseThrow();
+        assertThat(dbBooking.getBookingStatus()).isEqualTo(BookingStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("16. DELETE /api/showtimes/{id} (ADMIN): suất chiếu có đơn PAID chặn hủy trả 409 HAS_PAID_BOOKINGS (BR-SHOW-06)")
+    void deleteShowtime_WithPaidBooking_Throws409() throws Exception {
+        String adminToken = jwtTokenProvider.generateToken(adminUser);
+        LocalDate futureDate = LocalDate.now().plusDays(24);
+        LocalDateTime start = futureDate.atTime(10, 0, 0);
+        Showtime showtime = createTestShowtime(1, 1, start, start.plusMinutes(135), new BigDecimal("1.00"), true);
+
+        Booking paidBooking = Booking.builder()
+                .bookingCode("PAID2-" + java.util.UUID.randomUUID().toString().substring(0, 8))
+                .user(customerUser)
+                .showtime(showtime)
+                .channel(BookingChannel.ONLINE)
+                .discountAmount(0L)
+                .totalPrice(60000L)
+                .bookingStatus(BookingStatus.PAID)
+                .bookingTime(LocalDateTime.now())
+                .build();
+        bookingRepository.save(paidBooking);
+
+        mockMvc.perform(delete("/api/showtimes/" + showtime.getShowId())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("HAS_PAID_BOOKINGS"))
+                .andExpect(jsonPath("$.message").value("Suất chiếu đã có đơn thanh toán, cần hủy các đơn đó trước"));
+    }
+
+    @Test
+    @DisplayName("17. GET /api/rooms (ADMIN): trả danh sách phòng chiếu")
+    void getRooms_Admin_ReturnsRoomsList() throws Exception {
+        String adminToken = jwtTokenProvider.generateToken(adminUser);
+
+        mockMvc.perform(get("/api/rooms")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(2))))
+                .andExpect(jsonPath("$[0].roomId").isNumber())
+                .andExpect(jsonPath("$[0].roomName").isNotEmpty())
+                .andExpect(jsonPath("$[0].isActive").value(true));
     }
 }
 

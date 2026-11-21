@@ -20,12 +20,13 @@ public class MovieResponse {
 
     private MovieStatus movieStatus;
     private String posterUrl;
+    private Boolean isActive;
 
     public MovieResponse() {
     }
 
     public MovieResponse(Integer movieId, String title, String genre, Integer duration,
-                         AgeLimit ageLimit, LocalDate releaseDate, MovieStatus movieStatus, String posterUrl) {
+                         AgeLimit ageLimit, LocalDate releaseDate, MovieStatus movieStatus, String posterUrl, Boolean isActive) {
         this.movieId = movieId;
         this.title = title;
         this.genre = genre;
@@ -34,6 +35,7 @@ public class MovieResponse {
         this.releaseDate = releaseDate;
         this.movieStatus = movieStatus;
         this.posterUrl = posterUrl;
+        this.isActive = isActive;
     }
 
     public static Builder builder() {
@@ -53,6 +55,7 @@ public class MovieResponse {
                 .releaseDate(movie.getReleaseDate())
                 .movieStatus(movie.getMovieStatus())
                 .posterUrl(movie.getPosterUrl())
+                .isActive(movie.getIsActive())
                 .build();
     }
 
@@ -120,6 +123,14 @@ public class MovieResponse {
         this.posterUrl = posterUrl;
     }
 
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean active) {
+        isActive = active;
+    }
+
     public static class Builder {
         private Integer movieId;
         private String title;
@@ -129,6 +140,7 @@ public class MovieResponse {
         private LocalDate releaseDate;
         private MovieStatus movieStatus;
         private String posterUrl;
+        private Boolean isActive;
 
         public Builder movieId(Integer movieId) {
             this.movieId = movieId;
@@ -170,8 +182,13 @@ public class MovieResponse {
             return this;
         }
 
+        public Builder isActive(Boolean isActive) {
+            this.isActive = isActive;
+            return this;
+        }
+
         public MovieResponse build() {
-            return new MovieResponse(movieId, title, genre, duration, ageLimit, releaseDate, movieStatus, posterUrl);
+            return new MovieResponse(movieId, title, genre, duration, ageLimit, releaseDate, movieStatus, posterUrl, isActive);
         }
     }
 }

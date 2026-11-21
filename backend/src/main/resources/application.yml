@@ -33,6 +33,11 @@ server:
   port: 8080
 
 akashi:
+  cloudinary:
+    cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+    api-key: ${CLOUDINARY_API_KEY:}
+    api-secret: ${CLOUDINARY_API_SECRET:}
+    posters-folder: ${CLOUDINARY_POSTERS_FOLDER:akashi/posters}
   jwt:
     secret: ${JWT_SECRET}
     expiry-minutes: 60

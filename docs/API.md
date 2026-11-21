@@ -100,11 +100,67 @@ Không có endpoint xóa người dùng (BR-USER-02). Phản hồi không bao gi
 
 | Phương thức | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
-| GET | `/movies` | Public | Danh sách phim đang hiển thị, lọc `status`, `keyword`, phân trang. ADMIN thêm `includeInactive=true` để xem cả phim đã ẩn |
-| GET | `/movies/{id}` | Public | Chi tiết phim |
-| POST | `/movies` | ADMIN | Thêm phim (BR-MOV-01) |
-| PUT | `/movies/{id}` | ADMIN | Sửa phim, gồm cả `movieStatus` |
-| DELETE | `/movies/{id}` | ADMIN | **Ẩn** phim: đặt `isActive = false`, không xóa cứng (BR-MOV-03). Trả `204` |
+| GET | `/movies` | Public | Danh sách phim đang hiển thị (`isActive = true`), lọc `status`, `keyword`, `sort` (`newest` để xem phim mới nhất lên đầu, mặc định `movieId ASC`), phân trang. ADMIN thêm `includeInactive=true` để xem cả phim đã ẩn (người khác gửi bị bỏ qua) |
+| GET | `/movies/{id}` | Public | Chi tiết một phim. Chỉ trả phim `isActive = true`; nếu đã ẩn, khách thường nhận `404 NOT_FOUND`. ADMIN có quyền xem cả phim đã ẩn |
+| POST | `/movies` | ADMIN | Thêm phim mới (BR-MOV-01). Phim mới luôn `isActive = true`. Trả `201` kèm `MovieResponse` |
+| PUT | `/movies/{id}` | ADMIN | Sửa thông tin phim, gồm `movieStatus` và tùy chọn `isActive` để hiện lại phim đã ẩn hoặc ẩn phim. Không cho ẩn nếu còn suất chiếu chưa kết thúc (`409`). Trả `200` kèm `MovieResponse` |
+| DELETE | `/movies/{id}` | ADMIN | **Ẩn** (xóa mềm) phim: đặt `isActive = false`, không xóa dòng trong DB (BR-MOV-03). Không cho ẩn nếu còn suất chiếu chưa kết thúc (`409`). Gọi lại trên phim đã ẩn vẫn trả `204` |
+
+`POST /movies` (ADMIN)
+```json
+// Request
+{
+  "title": "Hành Tinh Cát 2",
+  "description": "Cuộc chiến bảo vệ hành tinh sa mạc.",
+  "duration": 166,
+  "genre": "Khoa học viễn tưởng, Hành động",
+  "ageLimit": "T16",
+  "releaseDate": "2026-03-01",
+  "movieStatus": "NOW_SHOWING",
+  "posterUrl": "https://res.cloudinary.com/<cloudName>/image/upload/v12345/sand.jpg"
+}
+
+// 201 Created
+{
+  "movieId": 6,
+  "title": "Hành Tinh Cát 2",
+  "genre": "Khoa học viễn tưởng, Hành động",
+  "duration": 166,
+  "ageLimit": "T16",
+  "releaseDate": "2026-03-01",
+  "movieStatus": "NOW_SHOWING",
+  "posterUrl": "https://res.cloudinary.com/<cloudName>/image/upload/v12345/sand.jpg",
+  "isActive": true
+}
+```
+
+`PUT /movies/{id}` (ADMIN)
+```json
+// Request: có thêm trường tùy chọn isActive
+{
+  "title": "Hành Tinh Cát 2 (Bản Cắt Của Đạo Diễn)",
+  "description": "Phiên bản mở rộng đặc biệt.",
+  "duration": 180,
+  "genre": "Khoa học viễn tưởng",
+  "ageLimit": "T16",
+  "releaseDate": "2026-03-01",
+  "movieStatus": "NOW_SHOWING",
+  "posterUrl": "https://res.cloudinary.com/<cloudName>/image/upload/v12345/sand-extended.jpg",
+  "isActive": true
+}
+
+// 200 OK -> MovieResponse
+```
+
+`Lỗi nghiệp vụ & ràng buộc:`
+- `409 MOVIE_HAS_UPCOMING_SHOWTIMES`: Khi DELETE hoặc PUT với `isActive = false` mà phim còn suất chiếu `isActive = true` và `endTime > now`. Message: `"Phim còn suất chiếu chưa kết thúc, cần hủy các suất đó trước"`.
+- `400 VALIDATION_ERROR`: Dữ liệu không hợp lệ:
+  + Thiếu `releaseDate` (bắt buộc): `"Ngày khởi chiếu là bắt buộc"`.
+  + `releaseDate` trong tương lai (từ ngày mai) nhưng `movieStatus != COMING_SOON`: `"Phim có ngày khởi chiếu trong tương lai phải có trạng thái SẮP CHIẾU"`.
+  + `releaseDate` quá 7 ngày trước nhưng `movieStatus != ENDED`: `"Phim đã quá thời hạn chiếu 7 ngày phải có trạng thái NGỪNG CHIẾU"`.
+  + `releaseDate` đã đến (hôm nay hoặc trong 7 ngày) nhưng `movieStatus == COMING_SOON`: `"Phim đã đến ngày khởi chiếu không thể để trạng thái SẮP CHIẾU"`.
+  + `posterUrl` không khớp tiền tố `https://res.cloudinary.com/<cloudName>/`: Message: `"Đường dẫn ảnh không hợp lệ"`.
+- `404 NOT_FOUND`: Phim không tồn tại (hoặc phim đã ẩn khi gọi bởi người dùng không phải ADMIN).
 
 ---
 
@@ -324,6 +380,25 @@ Khách không gọi trực tiếp nhóm này. Khách kiểm tra mã bằng `POST
 | Phương thức | Endpoint | Quyền | Mô tả |
 |---|---|---|---|
 | POST | `/uploads/signature` | ADMIN | Trả tham số đã ký để trình duyệt tải ảnh thẳng lên Cloudinary (poster, ảnh món, ảnh tin). Frontend chỉ gửi lại đường dẫn nhận được vào các trường `posterUrl`, `img`, `imageUrl` |
+
+`POST /uploads/signature` (ADMIN)
+- Backend tính chữ ký SHA-1 theo chuẩn Cloudinary (sắp xếp key alphabet: `allowed_formats`, `folder`, `timestamp` nối với `apiSecret`).
+- Response 200 OK:
+```json
+{
+  "cloudName": "akashi-cinema",
+  "apiKey": "1234567890",
+  "uploadUrl": "https://api.cloudinary.com/v1_1/akashi-cinema/image/upload",
+  "signature": "0f4ac359676b403249b1208a128c22a8f65d8413",
+  "params": {
+    "allowed_formats": "jpg,png,webp",
+    "folder": "akashi/posters",
+    "timestamp": 1700000000
+  }
+}
+```
+- Lỗi `503 CLOUDINARY_NOT_CONFIGURED`: Khi server chưa cấu hình đủ biến môi trường Cloudinary. Message: `"Chưa cấu hình lưu trữ ảnh"`.
+- Bảo mật: Tuyệt đối không trả về `apiSecret`, không ghi log hay in ra console.
 
 ---
 
