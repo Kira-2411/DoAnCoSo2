@@ -4,6 +4,7 @@ import { AlertTriangle, Loader2 } from 'lucide-react';
 const AdminConfirmDialog = ({
   isOpen,
   onClose,
+  onCancel,
   onConfirm,
   title = 'Xác nhận hành động',
   message = 'Bạn có chắc chắn muốn thực hiện hành động này?',
@@ -12,16 +13,18 @@ const AdminConfirmDialog = ({
   isDanger = true,
   loading = false,
 }) => {
+  const handleClose = onClose || onCancel || (() => {});
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && !loading) {
-        onClose();
+        handleClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, loading]);
+  }, [isOpen, handleClose, loading]);
 
   if (!isOpen) return null;
 
@@ -31,7 +34,7 @@ const AdminConfirmDialog = ({
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !loading) onClose();
+        if (e.target === e.currentTarget && !loading) handleClose();
       }}
     >
       <div className="relative w-full max-w-md bg-[#18181b] border border-zinc-700/80 rounded-2xl p-6 shadow-2xl flex flex-col items-center text-center">
@@ -56,7 +59,7 @@ const AdminConfirmDialog = ({
         <div className="flex items-center justify-center gap-3 w-full">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={loading}
             className="flex-1 py-2.5 px-4 rounded-xl border border-zinc-700 bg-zinc-850 hover:bg-zinc-800 text-zinc-300 font-semibold text-xs sm:text-sm transition cursor-pointer disabled:opacity-50"
           >

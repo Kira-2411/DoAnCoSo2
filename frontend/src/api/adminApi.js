@@ -17,6 +17,7 @@ import {
   INITIAL_USERS,
   calculateEndTime,
 } from '../mocks/adminMockData';
+import axiosClient from './axiosClient';
 
 // Kho dữ liệu lưu trong bộ nhớ (sao chép độc lập)
 let moviesDb = JSON.parse(JSON.stringify(INITIAL_MOVIES));
@@ -54,37 +55,24 @@ const paginateList = (list, page = 0, size = 10) => {
 
 export const adminApi = {
   /**
-   * Endpoint thật: GET /api/movies?includeInactive=true&status=...&keyword=...&page=...&size=...
+   * Endpoint thật: GET /api/movies?includeInactive=true&sort=newest&status=...&keyword=...&page=...&size=...
    * API.md mục 3
    */
-  listMovies: async ({ keyword = '', status = '', includeInactive = false, page = 0, size = 10 } = {}) => {
-    await mockDelay();
-    let result = [...moviesDb];
-
-    // Lọc theo trạng thái ẩn/hiển thị
-    if (!includeInactive) {
-      result = result.filter((m) => m.isActive);
+  listMovies: async ({ keyword = '', status = '', includeInactive = true, sort = 'newest', page = 0, size = 10 } = {}) => {
+    const params = {
+      page,
+      size,
+      includeInactive,
+      sort,
+    };
+    if (keyword && keyword.trim()) {
+      params.keyword = keyword.trim();
     }
-
-    // Lọc theo trạng thái phim (NOW_SHOWING, COMING_SOON, ENDED)
     if (status && status !== 'ALL') {
-      result = result.filter((m) => m.movieStatus === status);
+      params.status = status;
     }
-
-    // Lọc theo từ khóa (tên hoặc thể loại, không phân biệt hoa thường, bỏ khoảng trắng)
-    const kw = keyword.trim().toLowerCase();
-    if (kw) {
-      result = result.filter(
-        (m) =>
-          (m.title && m.title.toLowerCase().includes(kw)) ||
-          (m.genre && m.genre.toLowerCase().includes(kw))
-      );
-    }
-
-    // Sắp xếp ID giảm dần (mới nhất lên đầu)
-    result.sort((a, b) => b.movieId - a.movieId);
-
-    return paginateList(result, page, size);
+    const res = await axiosClient.get('/movies', { params });
+    return res.data;
   },
 
   /**
@@ -92,16 +80,24 @@ export const adminApi = {
    * API.md mục 3
    */
   createMovie: async (movieData) => {
-    await mockDelay();
-    const newId = moviesDb.length > 0 ? Math.max(...moviesDb.map((m) => m.movieId)) + 1 : 1;
-    const newMovie = {
-      ...movieData,
-      movieId: newId,
+    const payload = {
+      title: movieData.title?.trim(),
+      description: movieData.description?.trim() || null,
       duration: Number(movieData.duration),
-      isActive: true,
+      genre: movieData.genre?.trim() || null,
+      ageLimit: movieData.ageLimit,
+      releaseDate: movieData.releaseDate ? movieData.releaseDate : null,
+      movieStatus: movieData.movieStatus,
+      posterUrl: movieData.posterUrl?.trim() || null,
     };
-    moviesDb.unshift(newMovie);
-    return newMovie;
+    try {
+      const res = await axiosClient.post('/movies', payload);
+      moviesDb.unshift(res.data);
+      return res.data;
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi tạo phim mới';
+      throw new Error(message);
+    }
   },
 
   /**
@@ -109,19 +105,28 @@ export const adminApi = {
    * API.md mục 3
    */
   updateMovie: async (id, movieData) => {
-    await mockDelay();
-    const index = moviesDb.findIndex((m) => m.movieId === Number(id));
-    if (index === -1) {
-      throw { status: 404, code: 'NOT_FOUND', message: 'Không tìm thấy phim' };
-    }
-    const updated = {
-      ...moviesDb[index],
-      ...movieData,
-      movieId: Number(id),
+    const payload = {
+      title: movieData.title?.trim(),
+      description: movieData.description?.trim() || null,
       duration: Number(movieData.duration),
+      genre: movieData.genre?.trim() || null,
+      ageLimit: movieData.ageLimit,
+      releaseDate: movieData.releaseDate ? movieData.releaseDate : null,
+      movieStatus: movieData.movieStatus,
+      posterUrl: movieData.posterUrl?.trim() || null,
+      isActive: movieData.isActive,
     };
-    moviesDb[index] = updated;
-    return updated;
+    try {
+      const res = await axiosClient.put(`/movies/${id}`, payload);
+      const index = moviesDb.findIndex((m) => m.movieId === Number(id));
+      if (index !== -1) {
+        moviesDb[index] = res.data;
+      }
+      return res.data;
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi cập nhật phim';
+      throw new Error(message);
+    }
   },
 
   /**
@@ -129,26 +134,47 @@ export const adminApi = {
    * API.md mục 3, BR-MOV-03
    */
   hideMovie: async (id) => {
-    await mockDelay();
-    const movie = moviesDb.find((m) => m.movieId === Number(id));
-    if (!movie) {
-      throw { status: 404, code: 'NOT_FOUND', message: 'Không tìm thấy phim' };
+    try {
+      await axiosClient.delete(`/movies/${id}`);
+      const movie = moviesDb.find((m) => m.movieId === Number(id));
+      if (movie) movie.isActive = false;
+      return { success: true };
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi ẩn phim';
+      throw new Error(message);
     }
-    movie.isActive = false;
-    return { success: true };
   },
 
   /**
    * Phục hồi / Hiện lại phim đã ẩn (isActive = true)
+   * Gọi PUT /api/movies/{id} kèm isActive: true
    */
-  restoreMovie: async (id) => {
-    await mockDelay();
-    const movie = moviesDb.find((m) => m.movieId === Number(id));
-    if (!movie) {
-      throw { status: 404, code: 'NOT_FOUND', message: 'Không tìm thấy phim' };
+  restoreMovie: async (id, movieData) => {
+    try {
+      let data = movieData;
+      if (!data || !data.title) {
+        const detail = await axiosClient.get(`/movies/${id}`);
+        data = detail.data;
+      }
+      const payload = {
+        title: data.title?.trim(),
+        description: data.description?.trim() || null,
+        duration: Number(data.duration),
+        genre: data.genre?.trim() || null,
+        ageLimit: data.ageLimit,
+        releaseDate: data.releaseDate ? data.releaseDate : null,
+        movieStatus: data.movieStatus,
+        posterUrl: data.posterUrl?.trim() || null,
+        isActive: true,
+      };
+      const res = await axiosClient.put(`/movies/${id}`, payload);
+      const movie = moviesDb.find((m) => m.movieId === Number(id));
+      if (movie) movie.isActive = true;
+      return res.data;
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi phục hồi phim';
+      throw new Error(message);
     }
-    movie.isActive = true;
-    return { success: true };
   },
 
   /* =====================================================================
@@ -160,8 +186,8 @@ export const adminApi = {
    * API.md mục 8
    */
   listRooms: async () => {
-    await mockDelay(100);
-    return [...roomsDb];
+    const res = await axiosClient.get('/rooms');
+    return res.data;
   },
 
   /**
@@ -169,51 +195,13 @@ export const adminApi = {
    * API.md mục 4
    */
   listShowtimes: async ({ date = '', movieId = '', roomId = '', keyword = '' } = {}) => {
-    await mockDelay();
-    let result = [...showtimesDb];
-
-    // Lọc theo ngày (YYYY-MM-DD)
-    if (date) {
-      result = result.filter((s) => s.startTime.startsWith(date));
-    }
-
-    // Lọc theo phim
-    if (movieId && movieId !== 'ALL') {
-      result = result.filter((s) => s.movieId === Number(movieId));
-    }
-
-    // Lọc theo phòng
-    if (roomId && roomId !== 'ALL') {
-      result = result.filter((s) => s.roomId === Number(roomId));
-    }
-
-    // Tìm kiếm theo tên phim hoặc tên phòng
-    const kw = keyword.trim().toLowerCase();
-    if (kw) {
-      result = result.filter((s) => {
-        const movie = moviesDb.find((m) => m.movieId === s.movieId);
-        const room = roomsDb.find((r) => r.roomId === s.roomId);
-        const movieMatch = movie?.title?.toLowerCase().includes(kw);
-        const roomMatch = room?.roomName?.toLowerCase().includes(kw);
-        return movieMatch || roomMatch;
-      });
-    }
-
-    // Gắn thêm thông tin tên phim, tên phòng để giao diện hiển thị
-    const enriched = result.map((s) => {
-      const movie = moviesDb.find((m) => m.movieId === s.movieId);
-      const room = roomsDb.find((r) => r.roomId === s.roomId);
-      return {
-        ...s,
-        movieTitle: movie?.title || 'Phim đã bị xóa',
-        roomName: room?.roomName || 'Phòng không xác định',
-      };
-    });
-
-    // Sắp xếp: suất chiếu tương lai trước, theo thời gian tăng dần
-    enriched.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
-
-    return enriched;
+    const params = {};
+    if (date) params.date = date;
+    if (movieId && movieId !== 'ALL') params.movieId = movieId;
+    if (roomId && roomId !== 'ALL') params.roomId = roomId;
+    if (keyword && keyword.trim()) params.keyword = keyword.trim();
+    const res = await axiosClient.get('/showtimes', { params });
+    return res.data;
   },
 
   /**
@@ -221,72 +209,19 @@ export const adminApi = {
    * API.md mục 4, BR-SHOW-01 đến BR-SHOW-04
    */
   createShowtime: async ({ movieId, roomId, startTime, priceMultiplier = 1.0 }) => {
-    await mockDelay();
-    const movie = moviesDb.find((m) => m.movieId === Number(movieId));
-    if (!movie || !movie.isActive || movie.movieStatus === 'ENDED') {
-      throw {
-        status: 400,
-        code: 'VALIDATION_ERROR',
-        message: 'Phim không hợp lệ hoặc đã kết thúc chiếu (BR-SHOW-03)',
+    try {
+      const payload = {
+        movieId: Number(movieId),
+        roomId: Number(roomId),
+        startTime,
+        priceMultiplier: Number(priceMultiplier) || 1.0,
       };
+      const res = await axiosClient.post('/showtimes', payload);
+      return res.data;
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi tạo suất chiếu mới';
+      throw new Error(message);
     }
-
-    const room = roomsDb.find((r) => r.roomId === Number(roomId));
-    if (!room || !room.isActive) {
-      throw {
-        status: 400,
-        code: 'VALIDATION_ERROR',
-        message: 'Phòng chiếu không hoạt động (BR-SHOW-03)',
-      };
-    }
-
-    // Kiểm tra không tạo suất ở quá khứ
-    const startDate = new Date(startTime);
-    if (startDate.getTime() < Date.now()) {
-      throw {
-        status: 400,
-        code: 'VALIDATION_ERROR',
-        message: 'Không được tạo suất chiếu trong quá khứ (BR-SHOW-03)',
-      };
-    }
-
-    // Tính endTime tự động
-    const endTime = calculateEndTime(startTime, movie.duration);
-
-    // Kiểm tra chồng giờ trong cùng phòng chiếu (BR-SHOW-02)
-    // new.start < old.end VÀ new.end > old.start
-    const newStart = new Date(startTime).getTime();
-    const newEnd = new Date(endTime).getTime();
-
-    const isOverlap = showtimesDb.some((s) => {
-      if (!s.isActive || s.roomId !== Number(roomId)) return false;
-      const oldStart = new Date(s.startTime).getTime();
-      const oldEnd = new Date(s.endTime).getTime();
-      return newStart < oldEnd && newEnd > oldStart;
-    });
-
-    if (isOverlap) {
-      throw {
-        status: 409,
-        code: 'SHOWTIME_OVERLAP',
-        message: 'Phòng chiếu đã có suất chiếu khác trùng thời gian này (BR-SHOW-02)',
-      };
-    }
-
-    const newId = showtimesDb.length > 0 ? Math.max(...showtimesDb.map((s) => s.showId)) + 1 : 1;
-    const newShowtime = {
-      showId: newId,
-      movieId: Number(movieId),
-      roomId: Number(roomId),
-      startTime,
-      endTime,
-      priceMultiplier: Number(priceMultiplier) || 1.0,
-      isActive: true,
-      hasPaidBookings: false,
-    };
-
-    showtimesDb.push(newShowtime);
-    return newShowtime;
   },
 
   /**
@@ -294,35 +229,19 @@ export const adminApi = {
    * API.md mục 4, BR-SHOW-05
    */
   updateShowtime: async (id, { movieId, roomId, startTime, priceMultiplier }) => {
-    await mockDelay();
-    const index = showtimesDb.findIndex((s) => s.showId === Number(id));
-    if (index === -1) {
-      throw { status: 404, code: 'NOT_FOUND', message: 'Không tìm thấy suất chiếu' };
-    }
-    const current = showtimesDb[index];
-
-    if (current.hasPaidBookings) {
-      throw {
-        status: 409,
-        code: 'HAS_PAID_BOOKINGS',
-        message: 'Suất chiếu đã có đơn thanh toán, không thể thay đổi thông tin (BR-SHOW-05)',
+    try {
+      const payload = {
+        movieId: Number(movieId),
+        roomId: Number(roomId),
+        startTime,
+        priceMultiplier: Number(priceMultiplier) || 1.0,
       };
+      const res = await axiosClient.put(`/showtimes/${id}`, payload);
+      return res.data;
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi cập nhật suất chiếu';
+      throw new Error(message);
     }
-
-    const movie = moviesDb.find((m) => m.movieId === Number(movieId));
-    const endTime = calculateEndTime(startTime, movie ? movie.duration : 120);
-
-    const updated = {
-      ...current,
-      movieId: Number(movieId),
-      roomId: Number(roomId),
-      startTime,
-      endTime,
-      priceMultiplier: Number(priceMultiplier) || 1.0,
-    };
-
-    showtimesDb[index] = updated;
-    return updated;
   },
 
   /**
@@ -330,23 +249,13 @@ export const adminApi = {
    * API.md mục 4, BR-SHOW-06
    */
   cancelShowtime: async (id) => {
-    await mockDelay();
-    const showtime = showtimesDb.find((s) => s.showId === Number(id));
-    if (!showtime) {
-      throw { status: 404, code: 'NOT_FOUND', message: 'Không tìm thấy suất chiếu' };
+    try {
+      await axiosClient.delete(`/showtimes/${id}`);
+      return { success: true };
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi hủy suất chiếu';
+      throw new Error(message);
     }
-
-    // Mô phỏng kiểm tra đơn thanh toán
-    if (showtime.hasPaidBookings) {
-      throw {
-        status: 409,
-        code: 'HAS_PAID_BOOKINGS',
-        message: 'Suất chiếu đã có đơn thanh toán, cần hủy các đơn đó trước (BR-SHOW-06)',
-      };
-    }
-
-    showtime.isActive = false;
-    return { success: true };
   },
 
   /* =====================================================================
@@ -711,6 +620,19 @@ export const adminApi = {
 
     target.isActive = Boolean(isActive);
     return { success: true, isActive: target.isActive };
+  },
+
+  /* =====================================================================
+   * 6. TẢI ẢNH LÊN CLOUDINARY (Uploads)
+   * ===================================================================== */
+
+  /**
+   * Endpoint thật: POST /api/uploads/signature
+   * API.md mục 12
+   */
+  getUploadSignature: async () => {
+    const response = await axiosClient.post('/uploads/signature');
+    return response.data;
   },
 };
 

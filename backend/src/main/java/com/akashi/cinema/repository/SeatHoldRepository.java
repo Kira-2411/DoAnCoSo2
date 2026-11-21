@@ -17,5 +17,9 @@ public interface SeatHoldRepository extends JpaRepository<SeatHold, Integer> {
             "WHERE sh.booking.bookingId IN :bookingIds " +
             "ORDER BY s.rowNum ASC, s.colNum ASC")
     List<SeatHold> findByBookingIdsWithSeat(@Param("bookingIds") Collection<Integer> bookingIds);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM SeatHold sh WHERE sh.showtime.showId = :showId")
+    int deleteByShowId(@Param("showId") Integer showId);
 }
 

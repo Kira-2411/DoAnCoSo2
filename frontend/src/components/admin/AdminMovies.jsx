@@ -8,7 +8,8 @@ import {
   Film, 
   Clock, 
   Calendar, 
-  Loader2 
+  Loader2,
+  FolderOpen 
 } from 'lucide-react';
 import adminApi from '../../api/adminApi';
 import { useAdminToast } from './AdminLayout';
@@ -60,6 +61,70 @@ const AdminMovies = () => {
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+
+  // Upload poster state & ref
+  const fileInputRef = useRef(null);
+  const [uploadingPoster, setUploadingPoster] = useState(false);
+
+  // Xử lý chọn tệp từ máy tính và tải trực tiếp lên Cloudinary bằng chữ ký
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Kiểm tra định dạng (JPG, PNG, WEBP)
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      showToast('Chỉ chấp nhận định dạng ảnh JPG, PNG hoặc WEBP', 'error');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    // Kiểm tra dung lượng (tối đa 10MB)
+    const maxSizeInBytes = 10 * 1024 * 1024;
+    if (file.size > maxSizeInBytes) {
+      showToast('Dung lượng ảnh tối đa là 10MB', 'error');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    try {
+      setUploadingPoster(true);
+      // 1. Lấy chữ ký từ backend (POST /api/uploads/signature)
+      const sigData = await adminApi.getUploadSignature();
+
+      // 2. Chuẩn bị FormData theo yêu cầu Cloudinary
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      uploadData.append('api_key', sigData.apiKey);
+      uploadData.append('signature', sigData.signature);
+      uploadData.append('timestamp', sigData.params.timestamp);
+      uploadData.append('folder', sigData.params.folder);
+      uploadData.append('allowed_formats', sigData.params.allowed_formats);
+
+      // 3. Tải thẳng lên Cloudinary
+      const res = await fetch(sigData.uploadUrl, {
+        method: 'POST',
+        body: uploadData,
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error?.message || 'Tải ảnh lên Cloudinary thất bại');
+      }
+
+      const resJson = await res.json();
+      const uploadedUrl = resJson.secure_url || resJson.url;
+
+      setFormData((prev) => ({ ...prev, posterUrl: uploadedUrl }));
+      setFormErrors((prev) => ({ ...prev, posterUrl: null }));
+      showToast('Tải ảnh poster lên Cloudinary thành công');
+    } catch (err) {
+      showToast(err.message || 'Không thể tải ảnh lên lúc này', 'error');
+    } finally {
+      setUploadingPoster(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   // Dialog xác nhận ẩn/hiện
   const [confirmDialog, setConfirmDialog] = useState({
@@ -128,6 +193,36 @@ const AdminMovies = () => {
     setIsModalOpen(true);
   };
 
+  // Tự động điều chỉnh trạng thái chiếu phù hợp với ngày khởi chiếu
+  const handleReleaseDateChange = (dateValue) => {
+    let nextStatus = formData.movieStatus;
+    if (dateValue) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const dToday = new Date(todayStr);
+      const dSelected = new Date(dateValue);
+      const diffDays = Math.round((dSelected - dToday) / (1000 * 60 * 60 * 24));
+
+      if (diffDays > 0) {
+        // Khởi chiếu tương lai (từ ngày mai trở đi) -> SẮP CHIẾU
+        nextStatus = 'COMING_SOON';
+      } else if (diffDays >= -7) {
+        // Trong vòng 7 ngày kể từ ngày khởi chiếu -> ĐANG CHIẾU
+        nextStatus = 'NOW_SHOWING';
+      } else {
+        // Quá 7 ngày -> NGỪNG CHIẾU
+        nextStatus = 'ENDED';
+      }
+    }
+    setFormData((prev) => ({
+      ...prev,
+      releaseDate: dateValue,
+      movieStatus: nextStatus,
+    }));
+    if (formErrors.movieStatus) {
+      setFormErrors((prev) => ({ ...prev, movieStatus: null }));
+    }
+  };
+
   // Validate form trước khi submit
   const validateForm = () => {
     const errors = {};
@@ -144,6 +239,25 @@ const AdminMovies = () => {
 
     const imgErr = validateImageUrl(formData.posterUrl);
     if (imgErr) errors.posterUrl = imgErr;
+
+    // Validation trạng thái chiếu theo ngày khởi chiếu
+    const dateErr = validateRequired(formData.releaseDate, 'Vui lòng chọn ngày khởi chiếu');
+    if (dateErr) {
+      errors.releaseDate = dateErr;
+    } else {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const dToday = new Date(todayStr);
+      const dSelected = new Date(formData.releaseDate);
+      const diffDays = Math.round((dSelected - dToday) / (1000 * 60 * 60 * 24));
+
+      if (diffDays > 0 && formData.movieStatus !== 'COMING_SOON') {
+        errors.movieStatus = 'Phim khởi chiếu từ ngày mai trở đi phải có trạng thái SẮP CHIẾU (COMING_SOON)';
+      } else if (diffDays < -7 && formData.movieStatus !== 'ENDED') {
+        errors.movieStatus = 'Phim đã quá thời hạn chiếu 7 ngày phải có trạng thái NGỪNG CHIẾU (ENDED)';
+      } else if (diffDays <= 0 && diffDays >= -7 && formData.movieStatus === 'COMING_SOON') {
+        errors.movieStatus = 'Phim đã đến ngày khởi chiếu không thể để trạng thái SẮP CHIẾU (COMING_SOON)';
+      }
+    }
 
     setFormErrors(errors);
 
@@ -191,13 +305,13 @@ const AdminMovies = () => {
         await adminApi.hideMovie(movie.movieId);
         showToast(`Đã ẩn phim "${movie.title}"`);
       } else {
-        await adminApi.restoreMovie(movie.movieId);
+        await adminApi.restoreMovie(movie.movieId, movie);
         showToast(`Đã hiện lại phim "${movie.title}"`);
       }
       setConfirmDialog({ isOpen: false, movie: null, action: 'hide', loading: false });
       fetchMovies();
     } catch (err) {
-      showToast('Thao tác không thành công', 'error');
+      showToast(err.message || 'Thao tác không thành công', 'error');
       setConfirmDialog((prev) => ({ ...prev, loading: false }));
     }
   };
@@ -212,7 +326,7 @@ const AdminMovies = () => {
             <span>Quản Lý Phim</span>
           </h2>
           <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-            Quản lý thông tin phim chiếu rạp, áp dụng quy tắc ẩn phim bảo toàn lịch sử đặt vé (BR-MOV-03)
+            Quản lý thông tin phim chiếu rạp, bảo toàn lịch sử đặt vé
           </p>
         </div>
 
@@ -599,25 +713,43 @@ const AdminMovies = () => {
 
           {/* Hàng 3: Ngày khởi chiếu & Trạng thái chiếu */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <AdminFormField id="movie-releaseDate" label="Ngày khởi chiếu">
+            <AdminFormField id="movie-releaseDate" label="Ngày khởi chiếu" required error={formErrors.releaseDate} hint="Chọn ngày để tự động đề xuất trạng thái">
               <input
                 id="movie-releaseDate"
                 type="date"
                 value={formData.releaseDate}
-                onChange={(e) => setFormData({ ...formData, releaseDate: e.target.value })}
-                className="w-full bg-[#121214] border border-zinc-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-[#e50914] transition"
+                onChange={(e) => {
+                  handleReleaseDateChange(e.target.value);
+                  if (formErrors.releaseDate) {
+                    setFormErrors((prev) => ({ ...prev, releaseDate: null }));
+                  }
+                }}
+                className={`w-full bg-[#121214] border rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none transition ${
+                  formErrors.releaseDate
+                    ? 'border-red-500 ring-1 ring-red-500'
+                    : 'border-zinc-700 focus:border-[#e50914]'
+                }`}
               />
             </AdminFormField>
 
-            <AdminFormField id="movie-status" label="Trạng thái chiếu" required>
+            <AdminFormField id="movie-status" label="Trạng thái chiếu" required error={formErrors.movieStatus}>
               <select
                 id="movie-status"
                 value={formData.movieStatus}
-                onChange={(e) => setFormData({ ...formData, movieStatus: e.target.value })}
-                className="w-full bg-[#121214] border border-zinc-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-[#e50914] transition"
+                onChange={(e) => {
+                  setFormData({ ...formData, movieStatus: e.target.value });
+                  if (formErrors.movieStatus) {
+                    setFormErrors((prev) => ({ ...prev, movieStatus: null }));
+                  }
+                }}
+                className={`w-full bg-[#121214] border rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none transition ${
+                  formErrors.movieStatus
+                    ? 'border-red-500 ring-1 ring-red-500 text-red-300'
+                    : 'border-zinc-700 focus:border-[#e50914]'
+                }`}
               >
-                <option value="NOW_SHOWING">Đang chiếu (NOW_SHOWING)</option>
                 <option value="COMING_SOON">Sắp chiếu (COMING_SOON)</option>
+                <option value="NOW_SHOWING">Đang chiếu (NOW_SHOWING)</option>
                 <option value="ENDED">Ngừng chiếu (ENDED)</option>
               </select>
             </AdminFormField>
@@ -635,23 +767,50 @@ const AdminMovies = () => {
             />
           </AdminFormField>
 
-          {/* Đường dẫn Poster & Xem trước ảnh */}
+          {/* Input file ẩn để mở cửa sổ chọn tệp từ máy tính */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+
+          {/* Đường dẫn Poster & Nút thư mục tải lên */}
           <AdminFormField
             id="movie-posterUrl"
             label="Đường dẫn ảnh Poster"
-            hint="Bắt đầu bằng http://, https:// hoặc đường dẫn nội bộ /"
+            hint="Dán liên kết ảnh hoặc bấm nút biểu tượng thư mục để chọn ảnh từ máy tính"
             error={formErrors.posterUrl}
           >
-            <input
-              id="movie-posterUrl"
-              type="text"
-              value={formData.posterUrl}
-              onChange={(e) => setFormData({ ...formData, posterUrl: e.target.value })}
-              placeholder="https://example.com/poster.jpg hoặc /src/assets/..."
-              className={`w-full bg-[#121214] border rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none transition ${
-                formErrors.posterUrl ? 'border-red-500 ring-1 ring-red-500' : 'border-zinc-700 focus:border-[#e50914]'
-              }`}
-            />
+            <div className="flex gap-2">
+              <input
+                id="movie-posterUrl"
+                type="text"
+                value={formData.posterUrl}
+                onChange={(e) => setFormData({ ...formData, posterUrl: e.target.value })}
+                placeholder="https://res.cloudinary.com/... hoặc bấm nút thư mục bên cạnh"
+                className={`flex-1 bg-[#121214] border rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none transition ${
+                  formErrors.posterUrl ? 'border-red-500 ring-1 ring-red-500' : 'border-zinc-700 focus:border-[#e50914]'
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingPoster}
+                title="Chọn ảnh poster từ máy tính để tải lên"
+                className="flex items-center gap-1.5 px-3 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs sm:text-sm font-medium transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              >
+                {uploadingPoster ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-[#e50914]" />
+                ) : (
+                  <FolderOpen className="w-4 h-4 text-amber-400" />
+                )}
+                <span className="hidden sm:inline">
+                  {uploadingPoster ? 'Đang tải...' : 'Chọn ảnh'}
+                </span>
+              </button>
+            </div>
           </AdminFormField>
 
           {/* Xem trước ảnh Poster nếu có */}
@@ -700,7 +859,7 @@ const AdminMovies = () => {
         title={confirmDialog.action === 'hide' ? 'Ẩn phim khỏi website?' : 'Hiện lại phim trên website?'}
         message={
           confirmDialog.action === 'hide'
-            ? `Bạn có chắc chắn muốn ẩn phim "${confirmDialog.movie?.title}"?\n\nPhim sẽ bị ẩn khỏi website, nhưng toàn bộ dữ liệu lịch sử đặt vé và suất chiếu vẫn được giữ lại theo quy tắc BR-MOV-03.`
+            ? `Bạn có chắc chắn muốn ẩn phim "${confirmDialog.movie?.title}"?\n\nPhim sẽ bị ẩn khỏi website, nhưng toàn bộ dữ liệu lịch sử đặt vé và suất chiếu vẫn được giữ lại an toàn.`
             : `Bạn có muốn hiện lại phim "${confirmDialog.movie?.title}" trên trang web để mở bán vé trở lại?`
         }
         confirmText={confirmDialog.action === 'hide' ? 'Ẩn phim' : 'Hiện lại'}

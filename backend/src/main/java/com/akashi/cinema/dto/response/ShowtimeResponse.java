@@ -28,13 +28,16 @@ public class ShowtimeResponse {
     private LocalDateTime endTime;
 
     private BigDecimal priceMultiplier;
+    private Boolean isActive;
+    private Boolean hasPaidBookings;
 
     public ShowtimeResponse() {
     }
 
     public ShowtimeResponse(Integer showId, Integer movieId, String movieTitle, AgeLimit ageLimit,
                             Integer duration, String genre, Integer roomId, String roomName,
-                            LocalDateTime startTime, LocalDateTime endTime, BigDecimal priceMultiplier) {
+                            LocalDateTime startTime, LocalDateTime endTime, BigDecimal priceMultiplier,
+                            Boolean isActive, Boolean hasPaidBookings) {
         this.showId = showId;
         this.movieId = movieId;
         this.movieTitle = movieTitle;
@@ -46,6 +49,8 @@ public class ShowtimeResponse {
         this.startTime = startTime;
         this.endTime = endTime;
         this.priceMultiplier = priceMultiplier != null ? priceMultiplier.setScale(2, RoundingMode.HALF_UP) : null;
+        this.isActive = isActive;
+        this.hasPaidBookings = hasPaidBookings;
     }
 
     public static Builder builder() {
@@ -53,6 +58,10 @@ public class ShowtimeResponse {
     }
 
     public static ShowtimeResponse from(Showtime showtime) {
+        return from(showtime, false);
+    }
+
+    public static ShowtimeResponse from(Showtime showtime, Boolean hasPaidBookings) {
         if (showtime == null) {
             return null;
         }
@@ -71,6 +80,8 @@ public class ShowtimeResponse {
                 .startTime(showtime.getStartTime())
                 .endTime(showtime.getEndTime())
                 .priceMultiplier(showtime.getPriceMultiplier())
+                .isActive(showtime.getIsActive())
+                .hasPaidBookings(hasPaidBookings)
                 .build();
     }
 
@@ -162,6 +173,22 @@ public class ShowtimeResponse {
         this.priceMultiplier = priceMultiplier != null ? priceMultiplier.setScale(2, RoundingMode.HALF_UP) : null;
     }
 
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
+
+    public Boolean getHasPaidBookings() {
+        return hasPaidBookings;
+    }
+
+    public void setHasPaidBookings(Boolean hasPaidBookings) {
+        this.hasPaidBookings = hasPaidBookings;
+    }
+
     public static class Builder {
         private Integer showId;
         private Integer movieId;
@@ -174,6 +201,8 @@ public class ShowtimeResponse {
         private LocalDateTime startTime;
         private LocalDateTime endTime;
         private BigDecimal priceMultiplier;
+        private Boolean isActive;
+        private Boolean hasPaidBookings;
 
         public Builder showId(Integer showId) {
             this.showId = showId;
@@ -230,10 +259,19 @@ public class ShowtimeResponse {
             return this;
         }
 
+        public Builder isActive(Boolean isActive) {
+            this.isActive = isActive;
+            return this;
+        }
+
+        public Builder hasPaidBookings(Boolean hasPaidBookings) {
+            this.hasPaidBookings = hasPaidBookings;
+            return this;
+        }
+
         public ShowtimeResponse build() {
             return new ShowtimeResponse(showId, movieId, movieTitle, ageLimit, duration, genre,
-                    roomId, roomName, startTime, endTime, priceMultiplier);
+                    roomId, roomName, startTime, endTime, priceMultiplier, isActive, hasPaidBookings);
         }
     }
 }
-

@@ -86,6 +86,14 @@ public class SecurityConfig {
                                 "/api/news/**",
                                 "/api/promotions/active"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/movies", "/api/movies/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/movies/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/movies/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/showtimes", "/api/showtimes/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/showtimes/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/showtimes/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/rooms", "/api/rooms/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/uploads/signature").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/users/me/bookings").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/users/me").authenticated()
