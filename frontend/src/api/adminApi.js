@@ -521,106 +521,43 @@ export const adminApi = {
    * API.md mục 2, BR-ROLE-04
    */
   listUsers: async ({ role = '', keyword = '', page = 0, size = 10 } = {}) => {
-    await mockDelay();
-    let result = [...usersDb];
-
-    // Lọc theo vai trò
+    const params = { page, size };
     if (role && role !== 'ALL') {
-      result = result.filter((u) => u.role === role);
+      params.role = role;
     }
-
-    // Tìm kiếm theo username hoặc email
-    const kw = keyword.trim().toLowerCase();
-    if (kw) {
-      result = result.filter(
-        (u) =>
-          u.username.toLowerCase().includes(kw) ||
-          u.email.toLowerCase().includes(kw) ||
-          (u.phone && u.phone.includes(kw))
-      );
+    if (keyword && keyword.trim()) {
+      params.keyword = keyword.trim();
     }
-
-    // Sắp xếp theo thứ tự vai trò: ADMIN (1) -> STAFF (2) -> CUSTOMER (3), sau đó theo username A-Z
-    const rolePriority = { ADMIN: 1, STAFF: 2, CUSTOMER: 3 };
-    result.sort((a, b) => {
-      const pDiff = (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
-      if (pDiff !== 0) return pDiff;
-      return a.username.localeCompare(b.username, 'vi');
-    });
-
-    return paginateList(result, page, size);
+    const res = await axiosClient.get('/users', { params });
+    return res.data;
   },
 
   /**
    * Endpoint thật: PATCH /api/users/{id}/role
    * API.md mục 2, BR-ROLE-04
    */
-  updateUserRole: async (targetUserId, newRole, currentUserId) => {
-    await mockDelay();
-    const target = usersDb.find((u) => u.userId === Number(targetUserId));
-    if (!target) {
-      throw { status: 404, code: 'NOT_FOUND', message: 'Không tìm thấy người dùng' };
+  updateUserRole: async (targetUserId, newRole) => {
+    try {
+      const res = await axiosClient.patch(`/users/${targetUserId}/role`, { role: newRole });
+      return res.data;
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi đổi vai trò người dùng';
+      throw new Error(message);
     }
-
-    // BR-ROLE-04: Admin không được tự hạ quyền của chính mình
-    if (Number(targetUserId) === Number(currentUserId) && newRole !== 'ADMIN') {
-      throw {
-        status: 403,
-        code: 'FORBIDDEN',
-        message: 'Bạn không thể tự hạ vai trò quản trị của chính mình (BR-ROLE-04)',
-      };
-    }
-
-    // BR-ROLE-04: Không được hạ quyền Admin cuối cùng đang hoạt động
-    if (target.role === 'ADMIN' && newRole !== 'ADMIN') {
-      const activeAdmins = usersDb.filter((u) => u.role === 'ADMIN' && u.isActive);
-      if (activeAdmins.length <= 1) {
-        throw {
-          status: 403,
-          code: 'FORBIDDEN',
-          message: 'Không thể hạ quyền Admin cuối cùng của hệ thống (BR-ROLE-04)',
-        };
-      }
-    }
-
-    target.role = newRole;
-    return { success: true, role: target.role };
   },
 
   /**
    * Endpoint thật: PATCH /api/users/{id}/status (Khóa / Mở khóa)
    * API.md mục 2, BR-USER-02, BR-ROLE-04
    */
-  setUserActive: async (targetUserId, isActive, currentUserId) => {
-    await mockDelay();
-    const target = usersDb.find((u) => u.userId === Number(targetUserId));
-    if (!target) {
-      throw { status: 404, code: 'NOT_FOUND', message: 'Không tìm thấy người dùng' };
+  setUserActive: async (targetUserId, isActive) => {
+    try {
+      const res = await axiosClient.patch(`/users/${targetUserId}/status`, { isActive: Boolean(isActive) });
+      return res.data;
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi thay đổi trạng thái tài khoản';
+      throw new Error(message);
     }
-
-    // BR-ROLE-04: Admin không được tự khóa chính mình
-    if (Number(targetUserId) === Number(currentUserId) && !isActive) {
-      throw {
-        status: 403,
-        code: 'FORBIDDEN',
-        message: 'Bạn không thể tự khóa tài khoản của chính mình (BR-ROLE-04)',
-      };
-    }
-
-    // BR-ROLE-04: Không được khóa Admin cuối cùng đang hoạt động
-    if (target.role === 'ADMIN' && !isActive) {
-      const activeAdmins = usersDb.filter((u) => u.role === 'ADMIN' && u.isActive);
-      if (activeAdmins.length <= 1) {
-        throw {
-          status: 403,
-          code: 'FORBIDDEN',
-          message: 'Không thể khóa tài khoản Admin cuối cùng của hệ thống (BR-ROLE-04)',
-        };
-      }
-    }
-
-    target.isActive = Boolean(isActive);
-    return { success: true, isActive: target.isActive };
   },
 
   /* =====================================================================

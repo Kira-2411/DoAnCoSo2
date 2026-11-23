@@ -133,7 +133,7 @@ const AdminUsers = () => {
     if (!roleModalTarget) return;
 
     if (roleModalTarget.userId === currentUserId && selectedNewRole !== 'ADMIN') {
-      setRoleError('Bạn không thể tự hạ quyền quản trị của chính mình (BR-ROLE-04)');
+      setRoleError('Bạn không thể tự hạ vai trò quản trị của chính mình');
       return;
     }
 
@@ -141,7 +141,7 @@ const AdminUsers = () => {
     setRoleError('');
 
     try {
-      await adminApi.updateUserRole(roleModalTarget.userId, selectedNewRole, currentUserId);
+      await adminApi.updateUserRole(roleModalTarget.userId, selectedNewRole);
       showToast(
         'success',
         `Đã đổi vai trò của "${roleModalTarget.username}" thành ${ROLE_BADGES[selectedNewRole]?.label}`
@@ -151,7 +151,7 @@ const AdminUsers = () => {
     } catch (err) {
       console.error('Lỗi đổi vai trò:', err);
       setRoleError(err.message || 'Không thể đổi vai trò người dùng');
-      showToast('error', err.message || 'Lỗi đổi vai trò (BR-ROLE-04)');
+      showToast('error', err.message || 'Lỗi đổi vai trò');
     } finally {
       setRoleSubmitting(false);
     }
@@ -164,18 +164,18 @@ const AdminUsers = () => {
 
     try {
       const nextActive = !statusTarget.isActive;
-      await adminApi.setUserActive(statusTarget.userId, nextActive, currentUserId);
+      await adminApi.setUserActive(statusTarget.userId, nextActive);
       showToast(
         'success',
         nextActive
           ? `Đã mở khóa tài khoản cho "${statusTarget.username}"`
-          : `Đã khóa tài khoản "${statusTarget.username}" thành công (BR-USER-02)`
+          : `Đã khóa tài khoản "${statusTarget.username}" thành công`
       );
       setStatusTarget(null);
       fetchUsers();
     } catch (err) {
       console.error('Lỗi đổi trạng thái tài khoản:', err);
-      showToast('error', err.message || 'Không thể thay đổi trạng thái tài khoản (BR-ROLE-04)');
+      showToast('error', err.message || 'Không thể thay đổi trạng thái tài khoản');
     } finally {
       setStatusLoading(false);
     }
@@ -191,14 +191,14 @@ const AdminUsers = () => {
             Quản lý Người dùng & Phân quyền
           </h2>
           <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-            Tra cứu thông tin, phân quyền vai trò (Admin/Staff/Customer) và khóa tài khoản vi phạm (BR-USER-02, BR-ROLE-04)
+            Tra cứu thông tin, phân quyền vai trò (Admin/Staff/Customer) và khóa tài khoản vi phạm
           </p>
         </div>
 
         {/* Chú thích nguyên tắc bảo vệ tài khoản */}
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800/80 border border-zinc-700/60 text-xs text-zinc-300">
           <Info className="w-4 h-4 text-rose-400 flex-shrink-0" />
-          <span>Hệ thống áp dụng BR-ROLE-04: Không xóa cứng, bảo vệ tài khoản Admin cuối cùng</span>
+          <span>Hệ thống bảo vệ tài khoản: Không xóa cứng, bảo vệ tài khoản Quản trị viên cuối cùng</span>
         </div>
       </div>
 
@@ -602,7 +602,7 @@ const AdminUsers = () => {
         message={
           statusTarget
             ? statusTarget.isActive
-              ? `Tài khoản "${statusTarget.username}" sẽ bị khóa và không thể đăng nhập vào hệ thống. Các đơn đặt vé trước đó vẫn được lưu trữ nguyên vẹn (BR-USER-02). Bạn có chắc chắn muốn khóa tài khoản này?`
+              ? `Tài khoản "${statusTarget.username}" sẽ bị khóa và không thể đăng nhập vào hệ thống. Các đơn đặt vé trước đó vẫn được lưu trữ nguyên vẹn. Bạn có chắc chắn muốn khóa tài khoản này?`
               : `Tài khoản "${statusTarget.username}" sẽ được mở khóa và người dùng có thể tiếp tục đăng nhập, sử dụng dịch vụ bình thường.`
             : ''
         }

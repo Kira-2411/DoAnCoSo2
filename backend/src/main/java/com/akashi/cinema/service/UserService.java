@@ -9,6 +9,7 @@ import com.akashi.cinema.entity.BookingSeat;
 import com.akashi.cinema.entity.SeatHold;
 import com.akashi.cinema.entity.User;
 import com.akashi.cinema.enums.BookingStatus;
+import com.akashi.cinema.enums.Role;
 import com.akashi.cinema.exception.AppException;
 import com.akashi.cinema.repository.BookingRepository;
 import com.akashi.cinema.repository.BookingSeatRepository;
@@ -133,7 +134,7 @@ public class UserService {
                 .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Không tìm thấy người dùng"));
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
-            throw new AppException(HttpStatus.FORBIDDEN, "ACCOUNT_LOCKED", "Tài khoản đã bị khóa");
+            throw new AppException(HttpStatus.FORBIDDEN, "ACCOUNT_LOCKED", "Tài khoản này đã bị khóa, vui lòng đăng nhập bằng tài khoản khác");
         }
 
         return UserResponse.from(user);
@@ -145,13 +146,101 @@ public class UserService {
                 .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Không tìm thấy người dùng"));
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
-            throw new AppException(HttpStatus.FORBIDDEN, "ACCOUNT_LOCKED", "Tài khoản đã bị khóa");
+            throw new AppException(HttpStatus.FORBIDDEN, "ACCOUNT_LOCKED", "Tài khoản này đã bị khóa, vui lòng đăng nhập bằng tài khoản khác");
         }
 
         user.setUsername(request.getUsername().trim());
         user.setPhone(request.getPhone().trim());
 
         User saved = userRepository.save(user);
+        return UserResponse.from(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<UserResponse> getUsers(String roleStr, String keyword, int page, int size) {
+        if (page < 0 || size <= 0 || size > MAX_PAGE_SIZE) {
+            throw new AppException(
+                    HttpStatus.BAD_REQUEST,
+                    "VALIDATION_ERROR",
+                    "Tham số phân trang không hợp lệ (page >= 0, 1 <= size <= " + MAX_PAGE_SIZE + ")"
+            );
+        }
+
+        Role role = null;
+        if (roleStr != null && !roleStr.trim().isEmpty() && !roleStr.trim().equalsIgnoreCase("ALL")) {
+            try {
+                role = Role.valueOf(roleStr.trim().toUpperCase());
+            } catch (IllegalArgumentException ex) {
+                throw new AppException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Vai trò không hợp lệ: " + roleStr);
+            }
+        }
+
+        String kw = (keyword != null && !keyword.trim().isEmpty()) ? keyword.trim() : null;
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<User> userPage = userRepository.searchUsers(role, kw, pageable);
+
+        return PageResponse.from(userPage, UserResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public UserResponse getUserById(Integer id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Không tìm thấy người dùng"));
+        return UserResponse.from(user);
+    }
+
+    @Transactional
+    public UserResponse updateUserRole(Integer targetUserId, Role newRole, Integer currentAdminId) {
+        if (newRole == null) {
+            throw new AppException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Vai trò không được để trống");
+        }
+
+        User target = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Không tìm thấy người dùng"));
+
+        // BR-ROLE-04: Admin không được tự hạ quyền của chính mình
+        if (targetUserId.equals(currentAdminId) && newRole != Role.ADMIN) {
+            throw new AppException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Bạn không thể tự hạ vai trò quản trị của chính mình");
+        }
+
+        // BR-ROLE-04: Không được hạ quyền Admin cuối cùng đang hoạt động
+        if (target.getRole() == Role.ADMIN && newRole != Role.ADMIN) {
+            long activeAdmins = userRepository.countByRoleAndIsActiveTrue(Role.ADMIN);
+            if (Boolean.TRUE.equals(target.getIsActive()) && activeAdmins <= 1) {
+                throw new AppException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Không thể hạ quyền Admin cuối cùng của hệ thống");
+            }
+        }
+
+        target.setRole(newRole);
+        User saved = userRepository.save(target);
+        return UserResponse.from(saved);
+    }
+
+    @Transactional
+    public UserResponse updateUserStatus(Integer targetUserId, Boolean isActive, Integer currentAdminId) {
+        if (isActive == null) {
+            throw new AppException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Trạng thái hoạt động không được để trống");
+        }
+
+        User target = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Không tìm thấy người dùng"));
+
+        // BR-ROLE-04: Admin không được tự khóa chính mình
+        if (targetUserId.equals(currentAdminId) && Boolean.FALSE.equals(isActive)) {
+            throw new AppException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Bạn không thể tự khóa tài khoản của chính mình");
+        }
+
+        // BR-ROLE-04: Không được khóa Admin cuối cùng đang hoạt động
+        if (target.getRole() == Role.ADMIN && Boolean.FALSE.equals(isActive)) {
+            long activeAdmins = userRepository.countByRoleAndIsActiveTrue(Role.ADMIN);
+            if (Boolean.TRUE.equals(target.getIsActive()) && activeAdmins <= 1) {
+                throw new AppException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Không thể khóa tài khoản Admin cuối cùng của hệ thống");
+            }
+        }
+
+        target.setIsActive(isActive);
+        User saved = userRepository.save(target);
         return UserResponse.from(saved);
     }
 }
