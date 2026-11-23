@@ -29,21 +29,39 @@ import coImg from '../assets/images/AkashiCo.png';
 import vuiImg from '../assets/images/AkashiVui.png';
 import akashiImg from '../assets/images/Akashi.png';
 
+// Chuẩn hóa nhóm phân loại món ăn (COMBO | BAP | NUOC | OTHER)
+const getFoodCategoryGroup = (item) => {
+  if (!item) return 'OTHER';
+  const cat = (item.category || '').toUpperCase().trim();
+  const name = (item.name || '').toLowerCase();
+
+  if (cat === 'COMBO' || cat.includes('COMBO') || name.includes('combo')) {
+    return 'COMBO';
+  }
+  if (cat === 'POPCORN' || cat.includes('BẮP') || cat.includes('BAP') || name.includes('bắp') || name.includes('popcorn')) {
+    return 'BAP';
+  }
+  if (cat === 'DRINK' || cat.includes('NƯỚC') || cat.includes('NUOC') || name.includes('nước') || name.includes('drink')) {
+    return 'NUOC';
+  }
+  return 'OTHER';
+};
+
 // Lấy hình ảnh đại diện cho món ăn
 const getFoodImage = (item) => {
   if (item.img) return item.img;
   if (item.image) return item.image;
-  const cat = (item.category || '').toLowerCase();
+  const group = getFoodCategoryGroup(item);
   const name = (item.name || '').toLowerCase();
 
-  if (cat.includes('bắp')) {
+  if (group === 'BAP') {
     if (name.includes('phô mai')) return bapImg2;
     return bapImg1;
   }
-  if (cat.includes('nước')) {
+  if (group === 'NUOC') {
     return coImg;
   }
-  if (cat.includes('combo')) {
+  if (group === 'COMBO') {
     if (name.includes('1 bắp 1 nước')) return akashiImg;
     return vuiImg;
   }
@@ -52,20 +70,20 @@ const getFoodImage = (item) => {
 
 // Mô tả mặc định nếu database chưa có trường description
 const getFoodDescription = (item) => {
-  const cat = (item.category || '').toLowerCase();
+  const group = getFoodCategoryGroup(item);
   const name = (item.name || '').toLowerCase();
 
-  if (cat.includes('combo')) {
+  if (group === 'COMBO') {
     if (name.includes('2 bắp')) {
       return '2 Bắp rang giòn rụm + 2 Nước ngọt ly lớn siêu tiết kiệm cho cặp đôi & nhóm bạn.';
     }
     return 'Combo bắp nước siêu tiết kiệm kèm trải nghiệm điện ảnh trọn vẹn.';
   }
-  if (cat.includes('bắp')) {
+  if (group === 'BAP') {
     if (name.includes('phô mai')) return 'Bắp rang lắc bột phô mai mặn mà béo ngậy.';
     return 'Bắp rang bơ đường truyền thống giòn rụm, thơm ngậy.';
   }
-  if (cat.includes('nước')) {
+  if (group === 'NUOC') {
     return 'Thức uống mát lạnh sảng khoái đánh tan cơn khát.';
   }
   return 'Món ăn kèm thơm ngon tại quầy bắp nước Akashi Cinema.';
@@ -131,10 +149,10 @@ const FoodPage = () => {
   const tabCounts = useMemo(() => {
     const counts = { ALL: allFoods.length, COMBO: 0, BAP: 0, NUOC: 0 };
     allFoods.forEach((f) => {
-      const cat = (f.category || '').toLowerCase();
-      if (cat.includes('combo')) counts.COMBO += 1;
-      else if (cat.includes('bắp')) counts.BAP += 1;
-      else if (cat.includes('nước')) counts.NUOC += 1;
+      const group = getFoodCategoryGroup(f);
+      if (counts[group] !== undefined) {
+        counts[group] += 1;
+      }
     });
     return counts;
   }, [allFoods]);
@@ -144,12 +162,13 @@ const FoodPage = () => {
     const keyword = searchKeyword.trim().toLowerCase();
 
     const filtered = allFoods.filter((item) => {
-      const cat = (item.category || '').toLowerCase();
-      if (activeTab === 'COMBO' && !cat.includes('combo')) return false;
-      if (activeTab === 'BAP' && !cat.includes('bắp')) return false;
-      if (activeTab === 'NUOC' && !cat.includes('nước')) return false;
+      if (activeTab !== 'ALL') {
+        const group = getFoodCategoryGroup(item);
+        if (group !== activeTab) return false;
+      }
 
       if (keyword) {
+        const cat = (item.category || '').toLowerCase();
         const matchName = (item.name || '').toLowerCase().includes(keyword);
         const matchCat = cat.includes(keyword);
         const matchDesc = getFoodDescription(item).toLowerCase().includes(keyword);
@@ -368,7 +387,7 @@ const FoodPage = () => {
                 const imageSrc = getFoodImage(item);
                 const desc = getFoodDescription(item);
                 const priceFormatted = (item.price || 0).toLocaleString('vi-VN') + ' VNĐ';
-                const isCombo = (item.category || '').toLowerCase().includes('combo');
+                const isCombo = getFoodCategoryGroup(item) === 'COMBO';
 
                 return (
                   <div

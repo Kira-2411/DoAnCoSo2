@@ -51,7 +51,7 @@ public class AuthService {
 
         // BR-AUTH-10: Only when password is correct, check account status
         if (!Boolean.TRUE.equals(user.getIsActive())) {
-            throw new AppException(HttpStatus.FORBIDDEN, "ACCOUNT_LOCKED", "Tài khoản đã bị khóa");
+            throw new AppException(HttpStatus.FORBIDDEN, "ACCOUNT_LOCKED", "Tài khoản này đã bị khóa, vui lòng đăng nhập bằng tài khoản khác");
         }
 
         if (!Boolean.TRUE.equals(user.getEmailVerified())) {
@@ -76,7 +76,7 @@ public class AuthService {
                 .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Không tìm thấy người dùng"));
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
-            throw new AppException(HttpStatus.FORBIDDEN, "ACCOUNT_LOCKED", "Tài khoản đã bị khóa");
+            throw new AppException(HttpStatus.FORBIDDEN, "ACCOUNT_LOCKED", "Tài khoản này đã bị khóa, vui lòng đăng nhập bằng tài khoản khác");
         }
 
         return UserResponse.from(user);

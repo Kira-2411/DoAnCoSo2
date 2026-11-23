@@ -2,7 +2,10 @@ package com.akashi.cinema.dto.response;
 
 import com.akashi.cinema.entity.User;
 import com.akashi.cinema.enums.Role;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
+
+import java.time.LocalDateTime;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class UserResponse {
@@ -12,16 +15,29 @@ public class UserResponse {
     private String email;
     private String phone;
     private Role role;
+    private Boolean isActive;
+    private Boolean emailVerified;
+
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime createdAt;
 
     public UserResponse() {
     }
 
     public UserResponse(Integer userId, String username, String email, String phone, Role role) {
+        this(userId, username, email, phone, role, true, true, null);
+    }
+
+    public UserResponse(Integer userId, String username, String email, String phone, Role role,
+                        Boolean isActive, Boolean emailVerified, LocalDateTime createdAt) {
         this.userId = userId;
         this.username = username;
         this.email = email;
         this.phone = phone;
         this.role = role;
+        this.isActive = isActive;
+        this.emailVerified = emailVerified;
+        this.createdAt = createdAt;
     }
 
     public static Builder builder() {
@@ -38,6 +54,9 @@ public class UserResponse {
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .role(user.getRole())
+                .isActive(user.getIsActive())
+                .emailVerified(user.getEmailVerified())
+                .createdAt(user.getCreatedAt())
                 .build();
     }
 
@@ -81,12 +100,39 @@ public class UserResponse {
         this.role = role;
     }
 
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean active) {
+        isActive = active;
+    }
+
+    public Boolean getEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(Boolean emailVerified) {
+        this.emailVerified = emailVerified;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
     public static class Builder {
         private Integer userId;
         private String username;
         private String email;
         private String phone;
         private Role role;
+        private Boolean isActive = true;
+        private Boolean emailVerified = true;
+        private LocalDateTime createdAt;
 
         public Builder userId(Integer userId) {
             this.userId = userId;
@@ -113,8 +159,23 @@ public class UserResponse {
             return this;
         }
 
+        public Builder isActive(Boolean isActive) {
+            this.isActive = isActive;
+            return this;
+        }
+
+        public Builder emailVerified(Boolean emailVerified) {
+            this.emailVerified = emailVerified;
+            return this;
+        }
+
+        public Builder createdAt(LocalDateTime createdAt) {
+            this.createdAt = createdAt;
+            return this;
+        }
+
         public UserResponse build() {
-            return new UserResponse(userId, username, email, phone, role);
+            return new UserResponse(userId, username, email, phone, role, isActive, emailVerified, createdAt);
         }
     }
 }

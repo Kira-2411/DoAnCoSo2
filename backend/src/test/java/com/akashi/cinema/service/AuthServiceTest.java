@@ -133,7 +133,7 @@ class AuthServiceTest {
 
         assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(ex.getCode()).isEqualTo("ACCOUNT_LOCKED");
-        assertThat(ex.getMessage()).isEqualTo("Tài khoản đã bị khóa");
+        assertThat(ex.getMessage()).isEqualTo("Tài khoản này đã bị khóa, vui lòng đăng nhập bằng tài khoản khác");
     }
 
     @Test

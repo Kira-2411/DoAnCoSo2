@@ -124,8 +124,10 @@ const LoginPage = () => {
             // Không có details thì hiển thị thông báo chung phía trên form
             setError(data.message || 'Dữ liệu gửi lên không hợp lệ');
           }
+        } else if (data && data.code === 'ACCOUNT_LOCKED') {
+          setError(data.message || 'Tài khoản này đã bị khóa, vui lòng đăng nhập bằng tài khoản khác');
         } else if (data && data.message) {
-          // Lỗi nghiệp vụ từ server (BAD_CREDENTIALS, ACCOUNT_LOCKED, ...)
+          // Lỗi nghiệp vụ từ server (BAD_CREDENTIALS, ...)
           setError(data.message);
         } else {
           setError('Đã xảy ra lỗi, vui lòng thử lại sau');
