@@ -77,6 +77,10 @@ public class NewsResponse {
         return imageUrl;
     }
 
+    public String getImg() {
+        return imageUrl;
+    }
+
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
     }

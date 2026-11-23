@@ -89,12 +89,21 @@ class FoodIntegrationTest {
     @Test
     @DisplayName("2. GET /api/foods: Lọc theo danh mục và từ khóa")
     void getFoods_FilterByCategoryAndKeyword_ReturnsFilteredList() throws Exception {
+        Food testFood = Food.builder()
+                .name("Popcorn Caramel Special")
+                .price(55000L)
+                .category("POPCORN")
+                .isAvailable(true)
+                .build();
+        testFood = foodRepository.save(testFood);
+        createdTestFoodIds.add(testFood.getFoodId());
+
         mockMvc.perform(get("/api/foods")
-                        .param("category", "Bắp")
-                        .param("keyword", "phô mai"))
+                        .param("category", "POPCORN")
+                        .param("keyword", "Caramel"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].name").value("Bắp phô mai (vừa)"));
+                .andExpect(jsonPath("$[0].name").value("Popcorn Caramel Special"));
     }
 
     @Test

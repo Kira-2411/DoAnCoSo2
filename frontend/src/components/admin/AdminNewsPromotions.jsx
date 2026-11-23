@@ -13,7 +13,8 @@ import {
   Percent,
   DollarSign,
   AlertTriangle,
-  FileText
+  FileText,
+  FolderOpen
 } from 'lucide-react';
 import adminApi from '../../api/adminApi';
 import { useAdminToast } from './AdminLayout';
@@ -115,7 +116,64 @@ const AdminNewsPromotions = () => {
   const [newsFormErrors, setNewsFormErrors] = useState({});
   const [newsSubmitting, setNewsSubmitting] = useState(false);
 
-  // Xóa tin tức (XÓA THẬT theo BR-NEWS-01)
+  // Upload image state & ref cho tin tức
+  const newsFileInputRef = useRef(null);
+  const [uploadingNewsImage, setUploadingNewsImage] = useState(false);
+
+  const handleNewsFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      showToast('error', 'Chỉ chấp nhận định dạng ảnh JPG, PNG hoặc WEBP');
+      if (newsFileInputRef.current) newsFileInputRef.current.value = '';
+      return;
+    }
+
+    const maxSizeInBytes = 10 * 1024 * 1024;
+    if (file.size > maxSizeInBytes) {
+      showToast('error', 'Dung lượng ảnh tối đa là 10MB');
+      if (newsFileInputRef.current) newsFileInputRef.current.value = '';
+      return;
+    }
+
+    try {
+      setUploadingNewsImage(true);
+      const sigData = await adminApi.getUploadSignature();
+
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      uploadData.append('api_key', sigData.apiKey);
+      uploadData.append('signature', sigData.signature);
+      uploadData.append('timestamp', sigData.params.timestamp);
+      uploadData.append('folder', sigData.params.folder);
+      uploadData.append('allowed_formats', sigData.params.allowed_formats);
+
+      const res = await fetch(sigData.uploadUrl, {
+        method: 'POST',
+        body: uploadData,
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error?.message || 'Tải ảnh lên Cloudinary thất bại');
+      }
+
+      const data = await res.json();
+      setNewsForm((prev) => ({ ...prev, img: data.secure_url }));
+      if (newsFormErrors.img) setNewsFormErrors((prev) => ({ ...prev, img: '' }));
+      showToast('success', 'Tải ảnh bài viết lên Cloudinary thành công');
+    } catch (err) {
+      console.error('Lỗi upload ảnh tin tức:', err);
+      showToast('error', err.message || 'Không thể tải ảnh lên lúc này');
+    } finally {
+      setUploadingNewsImage(false);
+      if (newsFileInputRef.current) newsFileInputRef.current.value = '';
+    }
+  };
+
+  // Xóa tin tức (Xóa khỏi cơ sở dữ liệu)
   const [deleteNewsTarget, setDeleteNewsTarget] = useState(null);
   const [deleteNewsLoading, setDeleteNewsLoading] = useState(false);
 
@@ -192,7 +250,7 @@ const AdminNewsPromotions = () => {
     setDeleteNewsLoading(true);
     try {
       await adminApi.deleteNews(deleteNewsTarget.newsId);
-      showToast('success', `Đã xóa bài viết "${deleteNewsTarget.title}" (BR-NEWS-01)`);
+      showToast('success', `Đã xóa bài viết "${deleteNewsTarget.title}"`);
       setDeleteNewsTarget(null);
       fetchNews();
     } catch (err) {
@@ -264,13 +322,14 @@ const AdminNewsPromotions = () => {
 
   const handleOpenEditPromo = (item) => {
     setEditingPromo(item);
+    const datePart = item.expiryDate ? item.expiryDate.split('T')[0] : '';
     setPromoForm({
       code: item.code,
       description: item.description || '',
       discountType: item.discountType,
       discountValue: String(item.discountValue),
       minOrderValue: String(item.minOrderValue || 0),
-      expiryDate: item.expiryDate || '',
+      expiryDate: datePart,
       isActive: item.isActive,
     });
     setPromoFormErrors({});
@@ -284,8 +343,8 @@ const AdminNewsPromotions = () => {
     const cleanCode = (promoForm.code || '').trim().toUpperCase();
     if (!cleanCode) {
       errors.code = 'Mã khuyến mãi không được để trống';
-    } else if (cleanCode.length > 20) {
-      errors.code = 'Mã không được vượt quá 20 ký tự';
+    } else if (cleanCode.length > 50) {
+      errors.code = 'Mã không được vượt quá 50 ký tự';
     } else if (!/^[A-Z0-9_-]+$/.test(cleanCode)) {
       errors.code = 'Mã chỉ được chứa chữ hoa không dấu, số, gạch nối (-) hoặc (_)';
     }
@@ -315,13 +374,16 @@ const AdminNewsPromotions = () => {
     setPromoFormErrors({});
 
     try {
+      const formattedExpiry = promoForm.expiryDate.includes('T')
+        ? promoForm.expiryDate
+        : `${promoForm.expiryDate}T23:59:59`;
+
       const payload = {
         code: cleanCode,
-        description: promoForm.description.trim(),
         discountType: promoForm.discountType,
         discountValue: Number(promoForm.discountValue),
         minOrderValue: Number(promoForm.minOrderValue) || 0,
-        expiryDate: promoForm.expiryDate,
+        expiryDate: formattedExpiry,
         isActive: promoForm.isActive,
       };
 
@@ -358,7 +420,7 @@ const AdminNewsPromotions = () => {
         'success',
         nextState
           ? `Đã kích hoạt lại mã "${togglePromoTarget.code}"`
-          : `Đã ngừng áp dụng mã "${togglePromoTarget.code}" (BR-PROMO-05)`
+          : `Đã ngừng áp dụng mã "${togglePromoTarget.code}"`
       );
       setTogglePromoTarget(null);
       fetchPromos();
@@ -380,7 +442,7 @@ const AdminNewsPromotions = () => {
             Tin tức & Ưu đãi
           </h2>
           <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-            Quản lý bài viết truyền thông và các chương trình mã giảm giá (BR-NEWS-01, BR-PROMO-01 đến 05)
+            Quản lý bài viết truyền thông và các chương trình mã giảm giá
           </p>
         </div>
 
@@ -526,10 +588,10 @@ const AdminNewsPromotions = () => {
                               <Edit className="w-4 h-4" />
                             </button>
 
-                            {/* XÓA THẬT (BR-NEWS-01) */}
+                            {/* Xóa bài viết */}
                             <button
                               onClick={() => setDeleteNewsTarget(item)}
-                              title="Xóa vĩnh viễn (BR-NEWS-01)"
+                              title="Xóa bài viết"
                               className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -739,7 +801,7 @@ const AdminNewsPromotions = () => {
                               {item.isActive ? (
                                 <button
                                   onClick={() => setTogglePromoTarget(item)}
-                                  title="Ngừng áp dụng mã (BR-PROMO-05)"
+                                  title="Ngừng áp dụng mã"
                                   className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
                                 >
                                   <Power className="w-4 h-4" />
@@ -843,9 +905,17 @@ const AdminNewsPromotions = () => {
         isOpen={isNewsModalOpen}
         onClose={() => setIsNewsModalOpen(false)}
         title={editingNews ? 'Sửa bài viết tin tức' : 'Viết bài viết mới'}
-        description="Soạn thảo thông tin bài viết truyền thông hoặc sự kiện rạp chiếu."
+        description="Soạn thảo thông tin bài viết truyền thông hoặc sự kiện rạp chiếu. Ảnh có thể tải trực tiếp từ máy tính lên Cloudinary."
         size="lg"
       >
+        {/* Input file ẩn cho tin tức */}
+        <input
+          type="file"
+          ref={newsFileInputRef}
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={handleNewsFileSelect}
+        />
         <form onSubmit={handleSubmitNews} className="space-y-4">
           <AdminFormField label="Tiêu đề bài viết" required error={newsFormErrors.title}>
             <input
@@ -862,20 +932,38 @@ const AdminNewsPromotions = () => {
           </AdminFormField>
 
           <AdminFormField
-            label="Đường dẫn ảnh minh họa"
+            label="Hình ảnh bài viết"
             error={newsFormErrors.img}
-            helperText="Đường dẫn bắt đầu bằng http://, https:// hoặc /"
+            helperText="Đường dẫn ảnh từ Cloudinary hoặc bấm nút để tải tệp từ máy tính"
           >
-            <input
-              type="text"
-              value={newsForm.img}
-              onChange={(e) => {
-                setNewsForm((prev) => ({ ...prev, img: e.target.value }));
-                if (newsFormErrors.img) setNewsFormErrors((prev) => ({ ...prev, img: '' }));
-              }}
-              placeholder="https://images.unsplash.com/... hoặc /images/..."
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-rose-500"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newsForm.img}
+                onChange={(e) => {
+                  setNewsForm((prev) => ({ ...prev, img: e.target.value }));
+                  if (newsFormErrors.img) setNewsFormErrors((prev) => ({ ...prev, img: '' }));
+                }}
+                placeholder="https://res.cloudinary.com/... hoặc bấm nút bên cạnh"
+                className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-rose-500"
+              />
+              <button
+                type="button"
+                onClick={() => newsFileInputRef.current?.click()}
+                disabled={uploadingNewsImage}
+                title="Chọn ảnh từ máy tính để tải lên Cloudinary"
+                className="flex items-center gap-1.5 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-lg text-xs font-medium transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              >
+                {uploadingNewsImage ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
+                ) : (
+                  <FolderOpen className="w-4 h-4 text-amber-400" />
+                )}
+                <span className="hidden sm:inline">
+                  {uploadingNewsImage ? 'Đang tải...' : 'Tải ảnh lên'}
+                </span>
+              </button>
+            </div>
           </AdminFormField>
 
           {/* Xem trước ảnh */}
@@ -926,7 +1014,7 @@ const AdminNewsPromotions = () => {
             </button>
             <button
               type="submit"
-              disabled={newsSubmitting}
+              disabled={newsSubmitting || uploadingNewsImage}
               className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-medium text-sm transition-all disabled:opacity-50"
             >
               {newsSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -941,7 +1029,7 @@ const AdminNewsPromotions = () => {
         isOpen={isPromoModalOpen}
         onClose={() => setIsPromoModalOpen(false)}
         title={editingPromo ? 'Sửa mã ưu đãi' : 'Tạo mã ưu đãi mới'}
-        description="Thiết lập mã giảm giá theo tỷ lệ phần trăm hoặc số tiền VNĐ cố định (BR-PROMO-01 đến 05)."
+        description="Thiết lập mã giảm giá theo tỷ lệ phần trăm hoặc số tiền VNĐ cố định."
         size="md"
       >
         <form onSubmit={handleSubmitPromo} className="space-y-4">
@@ -1107,10 +1195,10 @@ const AdminNewsPromotions = () => {
       {/* Confirm XÓA THẬT Tin tức (BR-NEWS-01) */}
       <AdminConfirmDialog
         isOpen={Boolean(deleteNewsTarget)}
-        title="Xóa vĩnh viễn bài viết"
+        title="Xóa bài viết"
         message={
           deleteNewsTarget
-            ? `Bài viết "${deleteNewsTarget.title}" sẽ bị xóa vĩnh viễn khỏi cơ sở dữ liệu và không thể khôi phục lại (BR-NEWS-01). Bạn có chắc chắn?`
+            ? `Bài viết "${deleteNewsTarget.title}" sẽ bị xóa vĩnh viễn khỏi cơ sở dữ liệu và không thể khôi phục lại. Bạn có chắc chắn?`
             : ''
         }
         confirmText="Xóa bài viết"
@@ -1121,14 +1209,14 @@ const AdminNewsPromotions = () => {
         onCancel={() => setDeleteNewsTarget(null)}
       />
 
-      {/* Confirm Ngừng / Kích hoạt lại Khuyến mãi (BR-PROMO-05) */}
+      {/* Confirm Ngừng / Kích hoạt lại Khuyến mãi */}
       <AdminConfirmDialog
         isOpen={Boolean(togglePromoTarget)}
         title={togglePromoTarget?.isActive ? 'Ngừng áp dụng mã ưu đãi' : 'Kích hoạt lại mã ưu đãi'}
         message={
           togglePromoTarget
             ? togglePromoTarget.isActive
-              ? `Mã ưu đãi "${togglePromoTarget.code}" sẽ không thể áp dụng cho các đơn đặt vé mới nữa (BR-PROMO-05). Bạn có chắc chắn?`
+              ? `Mã ưu đãi "${togglePromoTarget.code}" sẽ không thể áp dụng cho các đơn đặt vé mới nữa. Bạn có chắc chắn?`
               : `Mã ưu đãi "${togglePromoTarget.code}" sẽ có thể sử dụng lại cho khách hàng đặt vé.`
             : ''
         }
