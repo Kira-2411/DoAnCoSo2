@@ -9,16 +9,18 @@ public class FoodResponse {
     private Long price;
     private String category;
     private String img;
+    private Boolean isAvailable;
 
     public FoodResponse() {
     }
 
-    public FoodResponse(Integer foodId, String name, Long price, String category, String img) {
+    public FoodResponse(Integer foodId, String name, Long price, String category, String img, Boolean isAvailable) {
         this.foodId = foodId;
         this.name = name;
         this.price = price;
         this.category = category;
         this.img = img;
+        this.isAvailable = isAvailable;
     }
 
     public static Builder builder() {
@@ -35,6 +37,7 @@ public class FoodResponse {
                 .price(food.getPrice())
                 .category(food.getCategory())
                 .img(food.getImg())
+                .isAvailable(food.getIsAvailable())
                 .build();
     }
 
@@ -78,12 +81,21 @@ public class FoodResponse {
         this.img = img;
     }
 
+    public Boolean getIsAvailable() {
+        return isAvailable;
+    }
+
+    public void setIsAvailable(Boolean isAvailable) {
+        this.isAvailable = isAvailable;
+    }
+
     public static class Builder {
         private Integer foodId;
         private String name;
         private Long price;
         private String category;
         private String img;
+        private Boolean isAvailable;
 
         public Builder foodId(Integer foodId) {
             this.foodId = foodId;
@@ -110,9 +122,13 @@ public class FoodResponse {
             return this;
         }
 
+        public Builder isAvailable(Boolean isAvailable) {
+            this.isAvailable = isAvailable;
+            return this;
+        }
+
         public FoodResponse build() {
-            return new FoodResponse(foodId, name, price, category, img);
+            return new FoodResponse(foodId, name, price, category, img, isAvailable);
         }
     }
 }
-
