@@ -92,6 +92,27 @@ public class CloudinaryService {
         return trimmed;
     }
 
+    public String validateAndNormalizeFoodImageUrl(String img) {
+        if (img == null || img.isBlank()) {
+            return null;
+        }
+
+        String trimmed = img.trim();
+
+        if (cloudName.isEmpty()) {
+            Map<String, String> details = Map.of("img", "Đường dẫn ảnh không hợp lệ");
+            throw new AppException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Đường dẫn ảnh không hợp lệ", details);
+        }
+
+        String expectedPrefix = "https://res.cloudinary.com/" + cloudName + "/";
+        if (!trimmed.startsWith(expectedPrefix)) {
+            Map<String, String> details = Map.of("img", "Đường dẫn ảnh phải thuộc Cloudinary của hệ thống");
+            throw new AppException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Đường dẫn ảnh không hợp lệ", details);
+        }
+
+        return trimmed;
+    }
+
     public static String sha1Hex(String input) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-1");

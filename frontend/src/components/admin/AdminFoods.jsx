@@ -7,9 +7,7 @@ import {
   Power,
   RotateCcw,
   Loader2,
-  Image as ImageIcon,
-  CheckCircle2,
-  AlertTriangle
+  FolderOpen,
 } from 'lucide-react';
 import adminApi from '../../api/adminApi';
 import { useAdminToast } from './AdminLayout';
@@ -27,6 +25,9 @@ const CATEGORY_MAP = {
   POPCORN: { label: 'Bắp rang', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
   DRINK: { label: 'Nước uống', color: 'bg-sky-500/20 text-sky-400 border-sky-500/30' },
   COMBO: { label: 'Combo ưu đãi', color: 'bg-rose-500/20 text-rose-400 border-rose-500/30' },
+  'Bắp': { label: 'Bắp rang', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+  'Nước': { label: 'Nước uống', color: 'bg-sky-500/20 text-sky-400 border-sky-500/30' },
+  'Combo': { label: 'Combo ưu đãi', color: 'bg-rose-500/20 text-rose-400 border-rose-500/30' },
 };
 
 const formatVND = (num) => {
@@ -71,6 +72,10 @@ const AdminFoods = () => {
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
+  // Upload image state & ref
+  const fileInputRef = useRef(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
   // Confirm Ngừng bán / Bán lại
   const [toggleTarget, setToggleTarget] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -87,7 +92,7 @@ const AdminFoods = () => {
       setFoods(data);
     } catch (err) {
       console.error('Lỗi tải danh sách đồ ăn:', err);
-      showToast('error', 'Không thể tải danh sách đồ ăn');
+      showToast('error', err.message || 'Không thể tải danh sách đồ ăn');
     } finally {
       setLoading(false);
     }
@@ -96,6 +101,60 @@ const AdminFoods = () => {
   useEffect(() => {
     fetchFoods();
   }, [category, debouncedKeyword, includeUnavailable]);
+
+  // Xử lý chọn tệp từ máy tính và tải trực tiếp lên Cloudinary bằng chữ ký
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      showToast('error', 'Chỉ chấp nhận định dạng ảnh JPG, PNG hoặc WEBP');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const maxSizeInBytes = 10 * 1024 * 1024;
+    if (file.size > maxSizeInBytes) {
+      showToast('error', 'Dung lượng ảnh tối đa là 10MB');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      const sigData = await adminApi.getUploadSignature();
+
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      uploadData.append('api_key', sigData.apiKey);
+      uploadData.append('signature', sigData.signature);
+      uploadData.append('timestamp', sigData.params.timestamp);
+      uploadData.append('folder', sigData.params.folder);
+      uploadData.append('allowed_formats', sigData.params.allowed_formats);
+
+      const res = await fetch(sigData.uploadUrl, {
+        method: 'POST',
+        body: uploadData,
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error?.message || 'Tải ảnh lên Cloudinary thất bại');
+      }
+
+      const data = await res.json();
+      setFormData((prev) => ({ ...prev, img: data.secure_url }));
+      if (formErrors.img) setFormErrors((prev) => ({ ...prev, img: '' }));
+      showToast('success', 'Tải ảnh món ăn lên Cloudinary thành công');
+    } catch (err) {
+      console.error('Lỗi upload ảnh món ăn:', err);
+      showToast('error', err.message || 'Không thể tải ảnh lên lúc này');
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   // Mở modal Thêm món
   const handleOpenAdd = () => {
@@ -111,7 +170,7 @@ const AdminFoods = () => {
     setFormData({
       name: item.name,
       price: String(item.price),
-      category: item.category,
+      category: item.category || 'POPCORN',
       img: item.img || '',
       isAvailable: item.isAvailable,
     });
@@ -174,18 +233,18 @@ const AdminFoods = () => {
     }
   };
 
-  // Xác nhận Ngừng bán / Bán lại (BR-FOOD-01)
+  // Xác nhận Ngừng bán / Bán lại
   const handleConfirmToggleAvailable = async () => {
     if (!toggleTarget) return;
     setActionLoading(true);
     try {
       const nextState = !toggleTarget.isAvailable;
-      await adminApi.setFoodAvailable(toggleTarget.foodId, nextState);
+      await adminApi.setFoodAvailable(toggleTarget.foodId, nextState, toggleTarget);
       showToast(
         'success',
         nextState
           ? `Đã mở bán lại món "${toggleTarget.name}"`
-          : `Đã ngừng bán món "${toggleTarget.name}" (BR-FOOD-01)`
+          : `Đã ngừng bán món "${toggleTarget.name}"`
       );
       setToggleTarget(null);
       fetchFoods();
@@ -199,6 +258,15 @@ const AdminFoods = () => {
 
   return (
     <div className="space-y-6">
+      {/* Input file ẩn để mở cửa sổ chọn tệp từ máy tính */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handleFileSelect}
+      />
+
       {/* Header và nút Thêm */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
         <div>
@@ -207,7 +275,7 @@ const AdminFoods = () => {
             Quản lý Đồ ăn & Nước uống
           </h2>
           <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-            Quản lý thực đơn bắp nước, combo ưu đãi và giá bán (BR-FOOD-01)
+            Quản lý thực đơn bắp nước, combo ưu đãi và giá bán
           </p>
         </div>
 
@@ -294,7 +362,7 @@ const AdminFoods = () => {
               </thead>
               <tbody className="divide-y divide-zinc-800/60">
                 {foods.map((item) => {
-                  const cat = CATEGORY_MAP[item.category] || { label: item.category, color: 'bg-zinc-800 text-zinc-400' };
+                  const cat = CATEGORY_MAP[item.category] || { label: item.category || 'Món ăn', color: 'bg-zinc-800 text-zinc-400' };
                   const isStopped = !item.isAvailable;
 
                   return (
@@ -366,7 +434,7 @@ const AdminFoods = () => {
                           {item.isAvailable ? (
                             <button
                               onClick={() => setToggleTarget(item)}
-                              title="Ngừng bán món này (BR-FOOD-01)"
+                              title="Ngừng bán món này"
                               className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
                             >
                               <Power className="w-4 h-4" />
@@ -392,7 +460,7 @@ const AdminFoods = () => {
           {/* Dạng thẻ Mobile */}
           <div className="grid grid-cols-1 gap-3 md:hidden">
             {foods.map((item) => {
-              const cat = CATEGORY_MAP[item.category] || { label: item.category, color: 'bg-zinc-800 text-zinc-400' };
+              const cat = CATEGORY_MAP[item.category] || { label: item.category || 'Món ăn', color: 'bg-zinc-800 text-zinc-400' };
               const isStopped = !item.isAvailable;
 
               return (
@@ -476,7 +544,7 @@ const AdminFoods = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingFood ? 'Sửa thông tin món' : 'Thêm món ăn / đồ uống'}
-        description="Điền thông tin và giá bán món ăn. Ảnh xem trước sẽ hiển thị ngay khi nhập URL hợp lệ."
+        description="Điền thông tin và giá bán món ăn. Ảnh có thể tải trực tiếp từ máy tính lên Cloudinary hoặc nhập link."
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -511,7 +579,7 @@ const AdminFoods = () => {
                         : 'bg-zinc-800/80 text-zinc-400 border-zinc-700 hover:bg-zinc-700/50'
                     }`}
                   >
-                    {CATEGORY_MAP[catKey].label}
+                    {CATEGORY_MAP[catKey]?.label || catKey}
                   </button>
                 );
               })}
@@ -527,7 +595,7 @@ const AdminFoods = () => {
           >
             <input
               type="number"
-              min="1000"
+              min="0"
               step="1000"
               value={formData.price}
               onChange={(e) => {
@@ -539,22 +607,40 @@ const AdminFoods = () => {
             />
           </AdminFormField>
 
-          {/* Đường dẫn hình ảnh */}
+          {/* Đường dẫn hình ảnh & Nút tải lên Cloudinary */}
           <AdminFormField
-            label="Đường dẫn ảnh món ăn"
+            label="Hình ảnh món ăn"
             error={formErrors.img}
-            helperText="Đường dẫn bắt đầu bằng http://, https:// hoặc / (TODO: tích hợp upload Cloudinary)"
+            helperText="Đường dẫn ảnh từ Cloudinary hoặc bấm nút để tải tệp từ máy tính"
           >
-            <input
-              type="text"
-              value={formData.img}
-              onChange={(e) => {
-                setFormData((prev) => ({ ...prev, img: e.target.value }));
-                if (formErrors.img) setFormErrors((prev) => ({ ...prev, img: '' }));
-              }}
-              placeholder="https://images.unsplash.com/... hoặc /images/..."
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-rose-500"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={formData.img}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, img: e.target.value }));
+                  if (formErrors.img) setFormErrors((prev) => ({ ...prev, img: '' }));
+                }}
+                placeholder="https://res.cloudinary.com/... hoặc bấm nút bên cạnh"
+                className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-rose-500"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage}
+                title="Chọn ảnh từ máy tính để tải lên Cloudinary"
+                className="flex items-center gap-1.5 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-lg text-xs font-medium transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              >
+                {uploadingImage ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
+                ) : (
+                  <FolderOpen className="w-4 h-4 text-amber-400" />
+                )}
+                <span className="hidden sm:inline">
+                  {uploadingImage ? 'Đang tải...' : 'Tải ảnh lên'}
+                </span>
+              </button>
+            </div>
           </AdminFormField>
 
           {/* Xem trước ảnh */}
@@ -605,7 +691,7 @@ const AdminFoods = () => {
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || uploadingImage}
               className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-medium text-sm transition-all disabled:opacity-50"
             >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -622,7 +708,7 @@ const AdminFoods = () => {
         message={
           toggleTarget
             ? toggleTarget.isAvailable
-              ? `Món "${toggleTarget.name}" sẽ ngừng phục vụ khách hàng. Dữ liệu các đơn cũ vẫn được bảo lưu (BR-FOOD-01). Bạn có chắc chắn?`
+              ? `Món "${toggleTarget.name}" sẽ ngừng phục vụ khách hàng. Dữ liệu các đơn cũ vẫn được bảo lưu an toàn. Bạn có chắc chắn?`
               : `Món "${toggleTarget.name}" sẽ hiển thị lại trên thực đơn đặt vé trực tuyến.`
             : ''
         }

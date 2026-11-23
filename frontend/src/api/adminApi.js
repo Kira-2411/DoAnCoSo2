@@ -263,27 +263,21 @@ export const adminApi = {
    * ===================================================================== */
 
   /**
-   * Endpoint thật: GET /api/foods?includeUnavailable=true&category=...
+   * Endpoint thật: GET /api/foods?includeUnavailable=true&category=...&keyword=...
    * API.md mục 9
    */
-  listFoods: async ({ category = '', keyword = '', includeUnavailable = false } = {}) => {
-    await mockDelay();
-    let result = [...foodsDb];
-
-    if (!includeUnavailable) {
-      result = result.filter((f) => f.isAvailable);
-    }
-
+  listFoods: async ({ category = '', keyword = '', includeUnavailable = true } = {}) => {
+    const params = {
+      includeUnavailable,
+    };
     if (category && category !== 'ALL') {
-      result = result.filter((f) => f.category === category);
+      params.category = category;
     }
-
-    const kw = keyword.trim().toLowerCase();
-    if (kw) {
-      result = result.filter((f) => f.name.toLowerCase().includes(kw));
+    if (keyword && keyword.trim()) {
+      params.keyword = keyword.trim();
     }
-
-    return result;
+    const res = await axiosClient.get('/foods', { params });
+    return res.data;
   },
 
   /**
@@ -291,16 +285,20 @@ export const adminApi = {
    * API.md mục 9
    */
   createFood: async (foodData) => {
-    await mockDelay();
-    const newId = foodsDb.length > 0 ? Math.max(...foodsDb.map((f) => f.foodId)) + 1 : 1;
-    const newFood = {
-      ...foodData,
-      foodId: newId,
-      price: Number(foodData.price) || 0,
-      isAvailable: foodData.isAvailable !== false,
-    };
-    foodsDb.unshift(newFood);
-    return newFood;
+    try {
+      const payload = {
+        name: foodData.name?.trim(),
+        price: Number(foodData.price),
+        category: foodData.category || null,
+        img: foodData.img?.trim() || null,
+        isAvailable: foodData.isAvailable !== false,
+      };
+      const res = await axiosClient.post('/foods', payload);
+      return res.data;
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi thêm món ăn mới';
+      throw new Error(message);
+    }
   },
 
   /**
@@ -308,33 +306,54 @@ export const adminApi = {
    * API.md mục 9
    */
   updateFood: async (id, foodData) => {
-    await mockDelay();
-    const index = foodsDb.findIndex((f) => f.foodId === Number(id));
-    if (index === -1) {
-      throw { status: 404, code: 'NOT_FOUND', message: 'Không tìm thấy món ăn' };
+    try {
+      const payload = {
+        name: foodData.name?.trim(),
+        price: Number(foodData.price),
+        category: foodData.category || null,
+        img: foodData.img?.trim() || null,
+        isAvailable: foodData.isAvailable,
+      };
+      const res = await axiosClient.put(`/foods/${id}`, payload);
+      return res.data;
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi cập nhật món ăn';
+      throw new Error(message);
     }
-    const updated = {
-      ...foodsDb[index],
-      ...foodData,
-      foodId: Number(id),
-      price: Number(foodData.price) || 0,
-    };
-    foodsDb[index] = updated;
-    return updated;
   },
 
   /**
-   * Ngừng bán (DELETE /api/foods/{id}) hoặc Bán lại
-   * API.md mục 9, BR-FOOD-01
+   * Ngừng bán (DELETE /api/foods/{id})
+   * API.md mục 9
    */
-  setFoodAvailable: async (id, isAvailable) => {
-    await mockDelay();
-    const food = foodsDb.find((f) => f.foodId === Number(id));
-    if (!food) {
-      throw { status: 404, code: 'NOT_FOUND', message: 'Không tìm thấy món ăn' };
+  deleteFood: async (id) => {
+    try {
+      await axiosClient.delete(`/foods/${id}`);
+      return { success: true };
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi ngừng bán món ăn';
+      throw new Error(message);
     }
-    food.isAvailable = Boolean(isAvailable);
-    return { success: true, isAvailable: food.isAvailable };
+  },
+
+  /**
+   * Chuyển trạng thái: Ngừng bán (DELETE /api/foods/{id}) hoặc Mở bán lại (PUT /api/foods/{id})
+   * API.md mục 9
+   */
+  setFoodAvailable: async (id, isAvailable, existingFood = null) => {
+    if (!isAvailable) {
+      return await adminApi.deleteFood(id);
+    }
+    if (!existingFood) {
+      throw new Error('Thiếu thông tin món ăn để mở bán lại');
+    }
+    return await adminApi.updateFood(id, {
+      name: existingFood.name,
+      price: existingFood.price,
+      category: existingFood.category,
+      img: existingFood.img,
+      isAvailable: true,
+    });
   },
 
   /* =====================================================================
