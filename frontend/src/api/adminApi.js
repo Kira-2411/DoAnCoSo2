@@ -361,24 +361,19 @@ export const adminApi = {
    * ===================================================================== */
 
   /**
-   * Endpoint thật: GET /api/news
+   * Endpoint thật: GET /api/news?keyword=...&page=...&size=...
    * API.md mục 11
    */
   listNews: async ({ keyword = '', page = 0, size = 10 } = {}) => {
-    await mockDelay();
-    let result = [...newsDb];
-
-    const kw = keyword.trim().toLowerCase();
-    if (kw) {
-      result = result.filter(
-        (n) =>
-          (n.title && n.title.toLowerCase().includes(kw)) ||
-          (n.content && n.content.toLowerCase().includes(kw))
-      );
+    const params = {
+      page,
+      size,
+    };
+    if (keyword && keyword.trim()) {
+      params.keyword = keyword.trim();
     }
-
-    result.sort((a, b) => b.newsId - a.newsId);
-    return paginateList(result, page, size);
+    const res = await axiosClient.get('/news', { params });
+    return res.data;
   },
 
   /**
@@ -386,17 +381,18 @@ export const adminApi = {
    * API.md mục 11
    */
   createNews: async (newsData) => {
-    await mockDelay();
-    const newId = newsDb.length > 0 ? Math.max(...newsDb.map((n) => n.newsId)) + 1 : 1;
-    const nowIso = new Date().toISOString().replace(/\.\d{3}Z$/, '');
-    const item = {
-      ...newsData,
-      newsId: newId,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    };
-    newsDb.unshift(item);
-    return item;
+    try {
+      const payload = {
+        title: newsData.title?.trim(),
+        content: newsData.content?.trim(),
+        imageUrl: newsData.imageUrl?.trim() || newsData.img?.trim() || null,
+      };
+      const res = await axiosClient.post('/news', payload);
+      return res.data;
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi tạo bài viết mới';
+      throw new Error(message);
+    }
   },
 
   /**
@@ -404,34 +400,32 @@ export const adminApi = {
    * API.md mục 11
    */
   updateNews: async (id, newsData) => {
-    await mockDelay();
-    const index = newsDb.findIndex((n) => n.newsId === Number(id));
-    if (index === -1) {
-      throw { status: 404, code: 'NOT_FOUND', message: 'Không tìm thấy bài viết' };
+    try {
+      const payload = {
+        title: newsData.title?.trim(),
+        content: newsData.content?.trim(),
+        imageUrl: newsData.imageUrl?.trim() || newsData.img?.trim() || null,
+      };
+      const res = await axiosClient.put(`/news/${id}`, payload);
+      return res.data;
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi cập nhật bài viết';
+      throw new Error(message);
     }
-    const nowIso = new Date().toISOString().replace(/\.\d{3}Z$/, '');
-    const updated = {
-      ...newsDb[index],
-      ...newsData,
-      newsId: Number(id),
-      updatedAt: nowIso,
-    };
-    newsDb[index] = updated;
-    return updated;
   },
 
   /**
    * Endpoint thật: DELETE /api/news/{id} (Xóa thật)
-   * API.md mục 11, BR-NEWS-01
+   * API.md mục 11
    */
   deleteNews: async (id) => {
-    await mockDelay();
-    const index = newsDb.findIndex((n) => n.newsId === Number(id));
-    if (index === -1) {
-      throw { status: 404, code: 'NOT_FOUND', message: 'Không tìm thấy bài viết' };
+    try {
+      await axiosClient.delete(`/news/${id}`);
+      return { success: true };
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi xóa bài viết';
+      throw new Error(message);
     }
-    newsDb.splice(index, 1);
-    return { success: true };
   },
 
   /**
@@ -439,50 +433,39 @@ export const adminApi = {
    * API.md mục 10
    */
   listPromotions: async ({ keyword = '', includeInactive = false } = {}) => {
-    await mockDelay();
-    let result = [...promotionsDb];
-
-    if (!includeInactive) {
-      result = result.filter((p) => p.isActive);
+    const params = { includeInactive };
+    if (keyword && keyword.trim()) {
+      params.keyword = keyword.trim();
     }
-
-    const kw = keyword.trim().toUpperCase();
-    if (kw) {
-      result = result.filter((p) => p.code.includes(kw));
-    }
-
-    result.sort((a, b) => b.promoId - a.promoId);
-    return result;
+    const res = await axiosClient.get('/promotions', { params });
+    return res.data;
   },
 
   /**
    * Endpoint thật: POST /api/promotions
-   * API.md mục 10, BR-PROMO-01 đến 05
+   * API.md mục 10
    */
   createPromotion: async (promoData) => {
-    await mockDelay();
-    const cleanCode = (promoData.code || '').trim().toUpperCase();
-
-    // Kiểm tra trùng code
-    if (promotionsDb.some((p) => p.code === cleanCode)) {
-      throw {
-        status: 409,
-        code: 'PROMO_EXISTS',
-        message: `Mã khuyến mãi "${cleanCode}" đã tồn tại trên hệ thống`,
-      };
-    }
-
-    const newId = promotionsDb.length > 0 ? Math.max(...promotionsDb.map((p) => p.promoId)) + 1 : 1;
-    const newPromo = {
-      ...promoData,
-      promoId: newId,
-      code: cleanCode,
+    const payload = {
+      code: (promoData.code || '').trim().toUpperCase(),
+      discountType: promoData.discountType,
       discountValue: Number(promoData.discountValue),
       minOrderValue: Number(promoData.minOrderValue) || 0,
-      isActive: true,
+      expiryDate: promoData.expiryDate?.includes('T')
+        ? promoData.expiryDate
+        : `${promoData.expiryDate}T23:59:59`,
     };
-    promotionsDb.unshift(newPromo);
-    return newPromo;
+    try {
+      const res = await axiosClient.post('/promotions', payload);
+      return res.data;
+    } catch (err) {
+      const errorData = err.response?.data;
+      throw {
+        status: err.response?.status || 500,
+        code: errorData?.code || 'ERROR',
+        message: errorData?.message || 'Lỗi khi tạo mã khuyến mãi',
+      };
+    }
   },
 
   /**
@@ -490,44 +473,43 @@ export const adminApi = {
    * API.md mục 10
    */
   updatePromotion: async (id, promoData) => {
-    await mockDelay();
-    const index = promotionsDb.findIndex((p) => p.promoId === Number(id));
-    if (index === -1) {
-      throw { status: 404, code: 'NOT_FOUND', message: 'Không tìm thấy mã khuyến mãi' };
-    }
-
-    const cleanCode = (promoData.code || '').trim().toUpperCase();
-    if (promotionsDb.some((p) => p.promoId !== Number(id) && p.code === cleanCode)) {
-      throw {
-        status: 409,
-        code: 'PROMO_EXISTS',
-        message: `Mã khuyến mãi "${cleanCode}" đã trùng với mã khác`,
-      };
-    }
-
-    const updated = {
-      ...promotionsDb[index],
-      ...promoData,
-      code: cleanCode,
+    const payload = {
+      code: (promoData.code || '').trim().toUpperCase(),
+      discountType: promoData.discountType,
       discountValue: Number(promoData.discountValue),
       minOrderValue: Number(promoData.minOrderValue) || 0,
+      expiryDate: promoData.expiryDate?.includes('T')
+        ? promoData.expiryDate
+        : `${promoData.expiryDate}T23:59:59`,
+      isActive: promoData.isActive,
     };
-    promotionsDb[index] = updated;
-    return updated;
+    try {
+      const res = await axiosClient.put(`/promotions/${id}`, payload);
+      return res.data;
+    } catch (err) {
+      const errorData = err.response?.data;
+      throw {
+        status: err.response?.status || 500,
+        code: errorData?.code || 'ERROR',
+        message: errorData?.message || 'Lỗi khi cập nhật mã khuyến mãi',
+      };
+    }
   },
 
   /**
    * Ngừng hoặc Kích hoạt lại mã khuyến mãi
-   * API.md mục 10, BR-PROMO-05
+   * API.md mục 10
    */
   setPromotionActive: async (id, isActive) => {
-    await mockDelay();
-    const promo = promotionsDb.find((p) => p.promoId === Number(id));
-    if (!promo) {
-      throw { status: 404, code: 'NOT_FOUND', message: 'Không tìm thấy mã khuyến mãi' };
+    try {
+      const res = await axiosClient.patch(`/promotions/${id}/status`, null, {
+        params: { active: Boolean(isActive) },
+      });
+      return { success: true, isActive: res.data.isActive };
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Lỗi khi thay đổi trạng thái mã khuyến mãi';
+      throw new Error(message);
     }
-    promo.isActive = Boolean(isActive);
-    return { success: true, isActive: promo.isActive };
   },
 
   /* =====================================================================

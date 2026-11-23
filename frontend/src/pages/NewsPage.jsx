@@ -17,7 +17,6 @@ import {
 
 import Header from '../components/Header';
 import MessengerButton from '../components/MessengerButton';
-import heroBannerImg from '../assets/images/AnhBiaAkashiCinema.png';
 import newsApi from '../api/newsApi';
 
 // Định dạng thời gian
@@ -75,19 +74,24 @@ const NewsPage = () => {
               ? ` cho đơn từ ${Number(p.minOrderValue).toLocaleString('vi-VN')} đ`
               : '';
 
+            const expiryText = p.expiryDate
+              ? `\n\n⏰ Thời hạn áp dụng: Đến ${formatDateTime(p.expiryDate)}`
+              : '';
+
             combined.push({
               id: `promo-${p.promoId}`,
               title: `Bùng nổ ưu đãi: Mã ${p.code} - ${discountLabel}`,
               category: 'PROMO',
               categoryLabel: 'Khuyến mãi',
-              time: p.expiryDate ? `Hạn dùng đến ${formatDateTime(p.expiryDate)}` : 'Đang diễn ra',
-              content: `Nhập mã ${p.code} khi thanh toán trực tuyến để nhận ngay ưu đãi ${discountLabel}${minCondition}. Áp dụng cho mọi suất chiếu tại cụm rạp Akashi Cinema!`,
+              time: formatDateTime(p.createdAt) || 'Vừa xong',
+              content: `Nhập mã ${p.code} khi thanh toán trực tuyến để nhận ngay ưu đãi ${discountLabel}${minCondition}. Áp dụng cho mọi suất chiếu tại cụm rạp Akashi Cinema!${expiryText}`,
               likesCount: 342,
               commentsCount: 56,
               isLiked: false,
               promoCode: p.code,
               promoDesc: `${discountLabel}${minCondition}`,
-              image: heroBannerImg,
+              image: p.imageUrl || null,
+              createdAt: p.createdAt || null,
             });
           });
         }
@@ -109,10 +113,18 @@ const NewsPage = () => {
                 isLiked: false,
                 promoCode: null,
                 image: n.imageUrl || null,
+                createdAt: n.createdAt || null,
               });
             });
           }
         }
+
+        // Sắp xếp bài viết từ mới nhất -> cũ nhất theo created_at
+        combined.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
 
         if (isMounted) {
           setPosts(combined);

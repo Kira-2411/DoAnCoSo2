@@ -17,17 +17,22 @@ public class PromotionResponse {
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime expiryDate;
 
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime createdAt;
+
     public PromotionResponse() {
     }
 
     public PromotionResponse(Integer promoId, String code, DiscountType discountType,
-                             Long discountValue, Long minOrderValue, LocalDateTime expiryDate) {
+                             Long discountValue, Long minOrderValue, LocalDateTime expiryDate,
+                             LocalDateTime createdAt) {
         this.promoId = promoId;
         this.code = code;
         this.discountType = discountType;
         this.discountValue = discountValue;
         this.minOrderValue = minOrderValue;
         this.expiryDate = expiryDate;
+        this.createdAt = createdAt;
     }
 
     public static Builder builder() {
@@ -45,6 +50,7 @@ public class PromotionResponse {
                 .discountValue(promotion.getDiscountValue())
                 .minOrderValue(promotion.getMinOrderValue())
                 .expiryDate(promotion.getExpiryDate())
+                .createdAt(promotion.getCreatedAt())
                 .build();
     }
 
@@ -96,6 +102,14 @@ public class PromotionResponse {
         this.expiryDate = expiryDate;
     }
 
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
     public static class Builder {
         private Integer promoId;
         private String code;
@@ -103,6 +117,7 @@ public class PromotionResponse {
         private Long discountValue;
         private Long minOrderValue;
         private LocalDateTime expiryDate;
+        private LocalDateTime createdAt;
 
         public Builder promoId(Integer promoId) {
             this.promoId = promoId;
@@ -134,9 +149,13 @@ public class PromotionResponse {
             return this;
         }
 
+        public Builder createdAt(LocalDateTime createdAt) {
+            this.createdAt = createdAt;
+            return this;
+        }
+
         public PromotionResponse build() {
-            return new PromotionResponse(promoId, code, discountType, discountValue, minOrderValue, expiryDate);
+            return new PromotionResponse(promoId, code, discountType, discountValue, minOrderValue, expiryDate, createdAt);
         }
     }
 }
-
