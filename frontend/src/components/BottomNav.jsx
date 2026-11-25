@@ -10,6 +10,7 @@ import {
   Award,
   Clapperboard
 } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 
 const NAV_ITEMS = [
   { id: 'home', label: 'Trang chủ', path: '/', icon: Home },
@@ -28,6 +29,8 @@ let lastPillCoords = null;
 
 const BottomNav = ({ activeId }) => {
   const location = useLocation();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
   const containerRef = useRef(null);
   const itemRefs = useRef({});
 
@@ -137,12 +140,22 @@ const BottomNav = ({ activeId }) => {
       aria-label="Thanh điều hướng chính"
       className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[96vw] sm:max-w-max"
     >
-      <div className="flex items-center gap-1 sm:gap-1.5 bg-[#0e0e11]/90 backdrop-blur-xl border border-zinc-700/60 shadow-[0_12px_40px_rgba(0,0,0,0.7)] px-2 sm:px-3 py-1.5 sm:py-2 rounded-full overflow-x-auto no-scrollbar">
+      <div
+        className={`flex items-center gap-1 sm:gap-1.5 backdrop-blur-xl border px-2 sm:px-3 py-1.5 sm:py-2 rounded-full overflow-x-auto no-scrollbar transition-colors duration-200 ${
+          isLight
+            ? 'bg-white/95 border-slate-200/90 shadow-[0_12px_35px_rgba(15,23,42,0.14)]'
+            : 'bg-[#0e0e11]/90 border-zinc-700/60 shadow-[0_12px_40px_rgba(0,0,0,0.7)]'
+        }`}
+      >
         
         {/* Left Badge / Cinema Logo Icon (inspired by nav.jpg capsule) */}
         <Link
           to="/"
-          className="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-zinc-800/90 hover:bg-zinc-700 text-[#e50914] flex items-center justify-center transition border border-zinc-700/50 shadow-inner group mr-1"
+          className={`flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full text-[#e50914] flex items-center justify-center transition border shadow-inner group mr-1 ${
+            isLight
+              ? 'bg-red-50 hover:bg-red-100 border-red-200/80'
+              : 'bg-zinc-800/90 hover:bg-zinc-700 border-zinc-700/50'
+          }`}
           title="Akashi Cinema"
         >
           <Clapperboard className="w-4 h-4 sm:w-4.5 sm:h-4.5 group-hover:rotate-12 transition-transform" />
@@ -157,7 +170,7 @@ const BottomNav = ({ activeId }) => {
           {pillStyle && (
             <div
               aria-hidden="true"
-              className={`absolute top-0 bottom-0 rounded-full bg-[#e50914] shadow-md shadow-red-950/50 pointer-events-none z-0 ${
+              className={`absolute top-0 bottom-0 rounded-full bg-[#e50914] shadow-md shadow-red-950/30 pointer-events-none z-0 ${
                 hasTransition
                   ? 'transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)]'
                   : ''
@@ -184,11 +197,21 @@ const BottomNav = ({ activeId }) => {
                 onClick={() => handleItemClick(item)}
                 className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap select-none transition-colors duration-200 cursor-pointer ${
                   active
-                    ? 'text-white'
-                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800/40'
+                    ? 'keep-text-white text-white'
+                    : isLight
+                      ? 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800/40'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-colors duration-200 ${active ? 'text-white' : 'text-zinc-400 group-hover:text-white'}`} />
+                <Icon
+                  className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-colors duration-200 ${
+                    active
+                      ? 'keep-text-white text-white'
+                      : isLight
+                        ? 'text-slate-500 group-hover:text-slate-900'
+                        : 'text-zinc-400 group-hover:text-white'
+                  }`}
+                />
                 <span>{item.label}</span>
               </Link>
             );
