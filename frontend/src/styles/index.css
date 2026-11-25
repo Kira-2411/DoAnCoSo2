@@ -19,11 +19,11 @@ html {
 }
 
 :root[data-theme='light'], html.light {
-  --bg-dark: #f4f4f5;
+  --bg-dark: #f4f5f7;
   --bg-card: #ffffff;
-  --text-primary: #09090b;
-  --text-secondary: #71717a;
-  --border-color: #e4e4e7;
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --border-color: #e2e8f0;
   color-scheme: light;
 }
 
@@ -31,7 +31,274 @@ body {
   background-color: var(--bg-dark);
   color: var(--text-primary);
   min-height: 100vh;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* ==========================================================================
+   LIGHT MODE THEME ENGINE (Khi html.light được kích hoạt, giữ Dark làm mặc định)
+   ========================================================================== */
+
+/* 1. Nền trang chính & Nền Layout Admin */
+html.light .bg-\[\#141414\],
+html.light .bg-\[\#141414\]\/50,
+html.light .bg-\[\#09090b\],
+html.light .bg-\[\#101012\],
+html.light .bg-\[\#0a0a0c\],
+html.light .bg-\[\#0d0d10\] {
+  background-color: #f4f5f7 !important;
+  color: #18181b;
+}
+
+/* 2. Bề mặt Card, Sidebar Admin, Quick Nav, Ô chọn ngày, Modal, Khung bảng */
+html.light .bg-\[\#161618\],
+html.light .bg-\[\#181818\]\/80,
+html.light .bg-\[\#18181b\],
+html.light .bg-\[\#19191c\]\/70,
+html.light .bg-\[\#1a1a1c\],
+html.light .bg-\[\#1b1b1e\],
+html.light .bg-\[\#1b1b1e\]\/60,
+html.light .bg-\[\#1c1c1f\],
+html.light .bg-\[\#1c1c1f\]\/95,
+html.light .bg-\[\#1c1c1f\]\/90,
+html.light .bg-\[\#1c1c1f\]\/80,
+html.light .bg-\[\#1c1c1f\]\/60,
+html.light .bg-\[\#1c1c1f\]\/40,
+html.light .bg-\[\#1e1e1e\],
+html.light .bg-\[\#1f1f1f\],
+html.light .bg-\[\#1f1f23\],
+html.light .bg-\[\#16161a\] {
+  background-color: #ffffff !important;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06);
+}
+
+html.light .hover\:bg-\[\#1d1d21\]:hover,
+html.light .hover\:bg-\[\#222226\]:hover,
+html.light .hover\:bg-\[\#232328\]:hover {
+  background-color: #f8fafc !important;
+}
+
+/* 3. Bề mặt phụ (Ô input, select, header bảng thead, footer phân trang Admin, nút phụ) */
+html.light .bg-\[\#121214\],
+html.light .bg-\[\#131316\],
+html.light .bg-\[\#141416\],
+html.light .bg-\[\#1e1e22\],
+html.light .bg-\[\#222226\],
+html.light .bg-\[\#232328\],
+html.light .bg-\[\#242424\],
+html.light .bg-\[\#27272a\]\/60,
+html.light .bg-\[\#2a2a2a\],
+html.light .bg-zinc-900,
+html.light .bg-zinc-900\/95,
+html.light .bg-zinc-900\/90,
+html.light .bg-zinc-900\/80,
+html.light .bg-zinc-900\/70,
+html.light .bg-zinc-900\/60,
+html.light .bg-zinc-900\/50,
+html.light .bg-zinc-900\/40,
+html.light .bg-zinc-950,
+html.light .bg-zinc-950\/40,
+html.light .bg-zinc-850,
+html.light .bg-zinc-850\/50 {
+  background-color: #f1f5f9 !important;
+}
+
+html.light select option {
+  background-color: #ffffff !important;
+  color: #18181b !important;
+}
+
+html.light .bg-zinc-800,
+html.light .bg-zinc-800\/90,
+html.light .bg-zinc-800\/80,
+html.light .bg-zinc-800\/70,
+html.light .bg-zinc-800\/60,
+html.light .bg-zinc-800\/50,
+html.light .bg-zinc-800\/40,
+html.light .bg-zinc-800\/30,
+html.light .bg-zinc-700\/40 {
+  background-color: #e2e8f0 !important;
+}
+
+html.light .hover\:bg-zinc-700:hover,
+html.light .hover\:bg-zinc-700\/90:hover,
+html.light .hover\:bg-zinc-700\/80:hover,
+html.light .hover\:bg-zinc-700\/50:hover,
+html.light .hover\:bg-zinc-800:hover,
+html.light .hover\:bg-zinc-800\/70:hover,
+html.light .hover\:bg-zinc-800\/60:hover,
+html.light .hover\:bg-zinc-800\/30:hover,
+html.light .hover\:bg-zinc-850:hover,
+html.light .hover\:bg-zinc-850\/50:hover,
+html.light .hover\:bg-zinc-900:hover {
+  background-color: #e2e8f0 !important;
+}
+
+/* Các nút trạng thái và thao tác trong bảng Admin (Xóa/Ẩn, Mở bán, Khóa...) */
+html.light .bg-red-950\/20,
+html.light .bg-red-950\/30,
+html.light .bg-red-950\/40,
+html.light .bg-red-950\/60,
+html.light .bg-red-900\/60 {
+  background-color: #fee2e2 !important;
+}
+
+html.light .hover\:bg-red-900\/40:hover,
+html.light .hover\:bg-red-900\/60:hover,
+html.light .hover\:bg-red-950\/40:hover {
+  background-color: #fecaca !important;
+}
+
+html.light .bg-emerald-950\/40,
+html.light .bg-emerald-950\/60 {
+  background-color: #d1fae5 !important;
+}
+
+html.light .hover\:bg-emerald-900\/60:hover {
+  background-color: #a7f3d0 !important;
+}
+
+html.light .bg-amber-950\/40 {
+  background-color: #fef3c7 !important;
+}
+
+html.light .bg-rose-950\/40 {
+  background-color: #ffe4e6 !important;
+}
+
+/* Banner mẹo nhỏ ở chế độ sáng */
+html.light .from-\[\#2a0e14\] {
+  --tw-gradient-from: #fff1f2 !important;
+  --tw-gradient-to: #ffffff !important;
+}
+
+/* 4. Đường viền & Đường kẻ bảng (Borders & Dividers) */
+html.light .border-zinc-800,
+html.light .border-zinc-800\/90,
+html.light .border-zinc-800\/80,
+html.light .border-zinc-800\/70,
+html.light .border-zinc-800\/60,
+html.light .border-zinc-800\/40,
+html.light .border-zinc-700,
+html.light .border-zinc-700\/90,
+html.light .border-zinc-700\/80,
+html.light .border-zinc-700\/70,
+html.light .border-zinc-700\/60,
+html.light .border-zinc-700\/50,
+html.light .border-zinc-700\/40,
+html.light .border-zinc-600,
+html.light .border-zinc-600\/40,
+html.light .border-zinc-600\/30 {
+  border-color: #e2e8f0 !important;
+}
+
+html.light .divide-zinc-800\/60 > :not([hidden]) ~ :not([hidden]),
+html.light .divide-zinc-800\/70 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e2e8f0 !important;
+}
+
+html.light .hover\:border-zinc-700:hover,
+html.light .hover\:border-zinc-700\/80:hover,
+html.light .hover\:border-zinc-600:hover {
+  border-color: #cbd5e1 !important;
+}
+
+/* 5. Màu chữ trong Light Mode */
+html.light .text-white:not(.bg-\[\#e50914\]):not(.bg-red-600):not(.bg-red-700):not(.bg-emerald-600):not(.bg-rose-600):not(.bg-amber-600):not(.bg-zinc-700):not(.bg-black\/60):not(.bg-black\/70) {
+  color: #18181b;
+}
+
+html.light .hover\:text-white:hover:not(.bg-\[\#e50914\]):not(.hover\:bg-\[\#e50914\]) {
+  color: #09090b !important;
+}
+
+/* Giữ chữ trắng trên các nút đỏ, huy hiệu độ tuổi, poster phim, toast và nút đang active */
+html.light .bg-\[\#e50914\],
+html.light .bg-\[\#e50914\] *,
+html.light .hover\:bg-\[\#e50914\]:hover,
+html.light .hover\:bg-\[\#e50914\]:hover *,
+html.light .bg-red-600,
+html.light .bg-red-600 *,
+html.light .bg-red-700,
+html.light .bg-emerald-600,
+html.light .bg-emerald-600 *,
+html.light .bg-rose-600,
+html.light .bg-rose-600 *,
+html.light .bg-amber-600,
+html.light .bg-amber-600 *,
+html.light .bg-zinc-700,
+html.light .bg-black\/60,
+html.light .bg-black\/60 *,
+html.light .bg-black\/65,
+html.light .bg-black\/65 *,
+html.light .bg-black\/70,
+html.light .bg-black\/70 *,
+html.light .bg-black\/75,
+html.light .bg-black\/75 *,
+html.light .bg-red-950\/95,
+html.light .bg-red-950\/95 *,
+html.light .bg-emerald-950\/95,
+html.light .bg-emerald-950\/95 *,
+html.light .from-zinc-800.to-zinc-950 .text-white,
+html.light .keep-text-white {
+  color: #ffffff !important;
+}
+
+html.light .text-zinc-100,
+html.light .text-zinc-200 {
+  color: #1e293b !important;
+}
+
+html.light .text-zinc-300 {
+  color: #334155 !important;
+}
+
+html.light .text-zinc-400 {
+  color: #475569 !important;
+}
+
+html.light .text-zinc-500 {
+  color: #64748b !important;
+}
+
+/* Chữ trạng thái màu xanh/vàng/đỏ tăng độ tương phản trên nền trắng */
+html.light .text-emerald-400,
+html.light .text-emerald-300,
+html.light .text-emerald-200 {
+  color: #047857 !important;
+}
+html.light .text-amber-400,
+html.light .text-amber-300 {
+  color: #b45309 !important;
+}
+html.light .text-red-400,
+html.light .text-red-300,
+html.light .text-red-200,
+html.light .text-rose-400,
+html.light .text-rose-300,
+html.light .text-rose-200 {
+  color: #be123c !important;
+}
+html.light .bg-emerald-500\/15,
+html.light .bg-emerald-500\/10,
+html.light .bg-emerald-500\/20 {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+}
+html.light .bg-amber-500\/15,
+html.light .bg-amber-500\/10,
+html.light .bg-amber-500\/20 {
+  background-color: rgba(245, 158, 11, 0.16) !important;
+}
+html.light .bg-red-500\/15,
+html.light .bg-red-500\/10,
+html.light .bg-rose-500\/15,
+html.light .bg-rose-500\/10,
+html.light .bg-rose-500\/20 {
+  background-color: rgba(239, 68, 68, 0.14) !important;
+}
+
+/* Giữ lớp phủ chân Hero Banner hài hòa với nền sáng */
+html.light .from-\[\#141414\] {
+  --tw-gradient-from: rgba(244, 245, 247, 0.85) !important;
 }
 
 /* Custom scrollbars */

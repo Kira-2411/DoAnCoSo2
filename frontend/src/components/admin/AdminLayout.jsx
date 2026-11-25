@@ -13,9 +13,12 @@ import {
   CheckCircle,
   AlertCircle,
   X,
-  Home
+  Home,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const AdminToastContext = createContext(null);
 
@@ -38,6 +41,7 @@ const NAV_ITEMS = [
 
 const AdminLayout = ({ activeTab, onTabChange, children }) => {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [toasts, setToasts] = useState([]);
 
   const showToast = (arg1, arg2 = 'success') => {
@@ -120,8 +124,27 @@ const AdminLayout = ({ activeTab, onTabChange, children }) => {
             </nav>
           </div>
 
-          {/* Bottom Navigation: Về trang chủ & Đăng xuất */}
+          {/* Bottom Navigation: Chế độ Sáng/Tối, Về trang chủ & Đăng xuất */}
           <div className="pt-4 border-t border-zinc-800 space-y-2">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:text-white hover:bg-zinc-800 hover:border-zinc-700 font-semibold text-xs transition cursor-pointer"
+              title={theme === 'dark' ? 'Chuyển sang giao diện Sáng' : 'Chuyển sang giao diện Tối'}
+            >
+              {theme === 'dark' ? (
+                <>
+                  <Moon className="w-4 h-4 text-amber-400" />
+                  <span>Giao diện: Tối (Bấm đổi Sáng)</span>
+                </>
+              ) : (
+                <>
+                  <Sun className="w-4 h-4 text-amber-500" />
+                  <span>Giao diện: Sáng (Bấm đổi Tối)</span>
+                </>
+              )}
+            </button>
+
             <Link
               to="/"
               className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:text-white hover:bg-zinc-800 hover:border-zinc-700 font-semibold text-xs transition cursor-pointer"
@@ -152,6 +175,18 @@ const AdminLayout = ({ activeTab, onTabChange, children }) => {
               <span className="text-xs text-zinc-300 font-semibold truncate max-w-[100px] hidden sm:inline">
                 {user?.username || user?.email}
               </span>
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="p-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:text-white transition cursor-pointer"
+                title={theme === 'dark' ? 'Bật chế độ sáng' : 'Bật chế độ tối'}
+              >
+                {theme === 'dark' ? (
+                  <Moon className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Sun className="w-4 h-4 text-amber-500" />
+                )}
+              </button>
               <Link
                 to="/"
                 className="p-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:text-white flex items-center gap-1 text-xs transition"

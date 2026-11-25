@@ -46,8 +46,16 @@ const Header = () => {
     navigate('/#my-tickets');
   };
 
+  const isLight = theme === 'light';
+
   return (
-    <header className="sticky top-0 z-40 w-full bg-[#141414]/95 dark:bg-[#141414]/95 backdrop-blur-md border-b border-zinc-800/80 transition-colors">
+    <header
+      className={`sticky top-0 z-40 w-full backdrop-blur-md border-b transition-colors duration-200 ${
+        isLight
+          ? 'bg-white/90 border-slate-200 shadow-sm'
+          : 'bg-[#141414]/95 border-zinc-800/80'
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Left: Home Icon & Brand */}
         <div className="flex items-center space-x-3">
@@ -71,7 +79,7 @@ const Header = () => {
           <button
             onClick={handleManageClick}
             type="button"
-            className="bg-[#e50914] hover:bg-[#b80710] text-white text-xs sm:text-sm font-semibold px-4 py-1.5 rounded-full transition shadow-md shadow-red-950/20 cursor-pointer flex items-center space-x-1"
+            className="keep-text-white bg-[#e50914] hover:bg-[#b80710] text-white text-xs sm:text-sm font-semibold px-4 py-1.5 rounded-full transition shadow-md shadow-red-950/20 cursor-pointer flex items-center space-x-1"
           >
             <Shield className="w-3.5 h-3.5 hidden sm:inline-block" />
             <span>Quản lí</span>
@@ -81,7 +89,9 @@ const Header = () => {
           <button
             onClick={handleMyTicketsClick}
             type="button"
-            className="text-zinc-200 hover:text-[#e50914] text-xs sm:text-sm font-medium transition cursor-pointer select-none"
+            className={`hover:text-[#e50914] text-xs sm:text-sm font-semibold transition cursor-pointer select-none ${
+              isLight ? 'text-slate-700' : 'text-zinc-200'
+            }`}
           >
             Vé của tôi
           </button>
@@ -91,7 +101,11 @@ const Header = () => {
             <button
               onClick={() => setUserDropdownOpen((prev) => !prev)}
               type="button"
-              className="w-9 h-9 rounded-full bg-zinc-800/90 hover:bg-zinc-700/90 text-zinc-200 flex items-center justify-center transition border border-zinc-700/50 cursor-pointer"
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition border cursor-pointer ${
+                isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                  : 'bg-zinc-800/90 hover:bg-zinc-700/90 text-zinc-200 border-zinc-700/50'
+              }`}
               title="Tài khoản"
               aria-label="Tài khoản"
             >
@@ -100,7 +114,13 @@ const Header = () => {
 
             {/* Dropdown Menu */}
             {userDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-[#1e1e1e] border border-zinc-800 shadow-2xl py-2 text-sm z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div
+                className={`absolute right-0 mt-2 w-56 rounded-2xl border shadow-2xl py-2 text-sm z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                  isLight
+                    ? 'bg-white border-slate-200 text-slate-800'
+                    : 'bg-[#1e1e1e] border-zinc-800 text-zinc-200'
+                }`}
+              >
                 {user ? (
                   <>
                     <div className="px-4 py-3 border-b border-zinc-800/80">
@@ -127,7 +147,7 @@ const Header = () => {
                         setUserDropdownOpen(false);
                         handleMyTicketsClick();
                       }}
-                      className="w-full text-left px-4 py-2 text-zinc-300 hover:bg-zinc-800/70 hover:text-white transition flex items-center space-x-2"
+                      className="w-full text-left px-4 py-2 text-zinc-300 hover:bg-zinc-800/70 hover:text-white transition flex items-center space-x-2 cursor-pointer"
                     >
                       <Ticket className="w-4 h-4 text-zinc-400" />
                       <span>Vé đã đặt</span>
@@ -139,7 +159,7 @@ const Header = () => {
                           setUserDropdownOpen(false);
                           handleManageClick();
                         }}
-                        className="w-full text-left px-4 py-2 text-zinc-300 hover:bg-zinc-800/70 hover:text-white transition flex items-center space-x-2"
+                        className="w-full text-left px-4 py-2 text-zinc-300 hover:bg-zinc-800/70 hover:text-white transition flex items-center space-x-2 cursor-pointer"
                       >
                         <Shield className="w-4 h-4 text-[#e50914]" />
                         <span>Trang quản trị ({user.role})</span>
@@ -153,7 +173,7 @@ const Header = () => {
                         setUserDropdownOpen(false);
                         logout();
                       }}
-                      className="w-full text-left px-4 py-2 text-red-400 hover:bg-red-950/20 hover:text-red-300 transition flex items-center space-x-2"
+                      className="w-full text-left px-4 py-2 text-red-500 hover:bg-red-500/10 transition flex items-center space-x-2 cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>Đăng xuất</span>
@@ -190,14 +210,24 @@ const Header = () => {
           <button
             onClick={toggleTheme}
             type="button"
-            className="w-9 h-9 rounded-full bg-zinc-800/90 hover:bg-zinc-700/90 text-zinc-200 flex items-center justify-center transition border border-zinc-700/50 cursor-pointer"
-            title={theme === 'dark' ? 'Chuyển sang chế độ sáng' : 'Chuyển sang chế độ tối'}
-            aria-label="Toggle Theme"
+            className={`h-9 px-3 rounded-full flex items-center gap-1.5 transition border cursor-pointer text-xs font-semibold ${
+              isLight
+                ? 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 shadow-sm'
+                : 'bg-zinc-800/90 hover:bg-zinc-700/90 text-zinc-200 border-zinc-700/50'
+            }`}
+            title={theme === 'dark' ? 'Chuyển sang giao diện Sáng (Light Mode)' : 'Chuyển sang giao diện Tối (Dark Mode)'}
+            aria-label={theme === 'dark' ? 'Bật chế độ sáng' : 'Bật chế độ tối'}
           >
             {theme === 'dark' ? (
-              <Moon className="w-4 h-4 text-amber-300 transition-transform hover:rotate-12" />
+              <>
+                <Moon className="w-4 h-4 text-amber-300 transition-transform hover:rotate-12" />
+                <span className="hidden md:inline">Tối</span>
+              </>
             ) : (
-              <Sun className="w-4 h-4 text-amber-500 transition-transform hover:rotate-45" />
+              <>
+                <Sun className="w-4 h-4 text-amber-500 transition-transform hover:rotate-45" />
+                <span className="hidden md:inline">Sáng</span>
+              </>
             )}
           </button>
         </div>
